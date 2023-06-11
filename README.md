@@ -114,3 +114,25 @@ convenience. The alias can be used anywhere an account name is accepted.
   You can use this to create hierarchies of tags (e.g. "travel/prague",
   "travel/dublin") and then do hierarchical queries (e.g.
   `stingy query by-month --tag travel/` to see total travel transactions).
+
+## Development
+
+### Building and running tests
+
+This is a simple Rust project managed by Cargo. Use `cargo build` to build it
+(or `cargo run` to run directly), and `cargo test` to run the tests.
+
+### Git hooks
+
+The git-hooks/ directory contains hooks to ensure tests are green and formatting
+is good before commits and pushes. Install them with:
+
+```
+$ cp git-hooks/* .git/hooks/
+```
+
+### Releasing
+
+1. Use `cargo update` to update Cargo.lock.
+1. Bump the version in Cargo.toml.
+1. Commit and push.
