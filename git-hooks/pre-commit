@@ -1,0 +1,12 @@
+#!/bin/bash
+# https://gist.github.com/hryniuk/e3f4ae34e37947d0ff55a3f63add90f8
+
+diff=$(cargo fmt -- --check)
+result=$?
+
+if [[ ${result} -ne 0 ]] ; then
+    cat <<\EOF
+There are some code style issues, run `cargo fmt` first.
+EOF
+    exit 1
+fi
