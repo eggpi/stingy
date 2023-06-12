@@ -419,7 +419,7 @@ fn stingy_main() -> Result<()> {
                             tag_rule_id,
                             tagged_transactions,
                         } => {
-                            println!("{OK} Added tag rule {tag_rule_id}, tagging {tagged_transactions} transactions with tag '{tag}'.")
+                            println!("{OK} Added tag rule {tag_rule_id}, tagging {tagged_transactions} transaction(s) with tag '{tag}'.")
                         }
                         commands::tags::AddTagRuleResult::NotUnique { tag_rule_id } => {
                             println!(
