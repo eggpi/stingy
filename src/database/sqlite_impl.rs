@@ -123,7 +123,7 @@ impl SQLiteStingyDatabase {
         initialize_sqlite(&conn).unwrap();
         Box::new(Self {
             conn: conn,
-            path: PathBuf::from("testing"),
+            path: PathBuf::from(":memory:"),
         })
     }
 }
@@ -135,6 +135,14 @@ impl private::Reset for SQLiteStingyDatabase {
 }
 
 impl StingyDatabase for SQLiteStingyDatabase {
+    fn get_uri(&self) -> String {
+        let mut uri = "file://".to_string();
+        if let Some(p) = self.path.to_str() {
+            uri.push_str(p);
+        }
+        uri
+    }
+
     fn count_transactions(&self) -> Result<usize> {
         let rows = sqlv!(&self.conn, "SELECT COUNT(*) FROM transactions")?;
         let count: i64 = (&rows[0][0]).try_into()?;

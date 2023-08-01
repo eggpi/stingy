@@ -134,6 +134,7 @@ pub trait StingyDatabase:
     + QueryOperations<ByTagRow>
     + private::Reset
 {
+    fn get_uri(&self) -> String;
     fn count_transactions(&self) -> Result<usize>;
     fn count_matching_transactions(&self, tag_rule_id: &str) -> Result<usize>;
     fn perform_migrations(&self) -> Result<()>;

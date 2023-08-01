@@ -88,6 +88,9 @@ enum Commands {
         revolut_csv: Vec<String>,
     },
 
+    /// List configuration paths and other information.
+    Info {},
+
     /// Remove all data.
     Reset {},
 }
@@ -228,7 +231,7 @@ fn stingy_main() -> Result<()> {
     let cli = Stingy::parse();
     let mut cmd = Stingy::command();
     let can_run_on_empty_database = match &cli.command {
-        Some(Commands::Import { .. }) | Some(Commands::Reset {}) => true,
+        Some(Commands::Import { .. }) | Some(Commands::Reset {}) | Some(Commands::Info {}) => true,
         _ => false,
     };
     match &cli.command {
@@ -480,6 +483,10 @@ fn stingy_main() -> Result<()> {
                 account.as_deref(),
             )?;
             table::render_table(&mut io::stdout(), &columns, &rows)
+        }
+        Some(Commands::Info {}) => {
+            let info = commands::info::command_info(&db)?;
+            println!("Database URI: {}", info.database_uri)
         }
         Some(Commands::Reset {}) => {
             let prompt =
