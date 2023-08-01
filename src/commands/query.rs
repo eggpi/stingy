@@ -1126,4 +1126,50 @@ mod by_tag_tests {
         // We want to check that there's no division by zero in the
         // % fields as no credit transactions are selected.
     }
+
+    #[test]
+    fn tagged_by_multiple_rules() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "pub",
+            None,
+            Some("pub"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "pub",
+            None,
+            Some("pu"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let QueryResult { rows, .. } = command_query(
+            &db,
+            &PreparedQuery::ByTag {
+                transaction_type: None,
+            },
+            &vec![],
+            None,
+            None,
+            None,
+            Some(NaiveDate::from_ymd_opt(2021, 02, 25).unwrap()),
+            None,
+            Some("000000 - 00000000"),
+        )
+        .unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1], vec!["pub", "16.00", "11.43", "0.00", "0.00"]);
+    }
 }
