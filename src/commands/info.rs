@@ -3,11 +3,13 @@ use anyhow::Result;
 
 pub struct InfoResult {
     pub database_uri: String,
+    pub git_sha: String,
 }
 
 pub fn command_info(db: &Box<dyn database::StingyDatabase>) -> Result<InfoResult> {
     Ok(InfoResult {
         database_uri: db.get_uri(),
+        git_sha: env!("VERGEN_GIT_SHA").to_string(),
     })
 }
 
@@ -23,5 +25,6 @@ mod info_tests {
         // By hardcoding ":memory:", this test is aware that we're testing on
         // an in-memory SQLite database. Not great, but fine in a quick test.
         assert_eq!(info.database_uri, "file://:memory:");
+        assert_eq!(info.git_sha.len(), 40)
     }
 }
