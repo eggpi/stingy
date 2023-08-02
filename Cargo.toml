@@ -2,6 +2,10 @@
 name = "stingy"
 version = "0.0.1"
 edition = "2021"
+build = "build.rs"
+
+[build-dependencies]
+vergen = { version = "8.0.0", features = ["git", "gitcl"] }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

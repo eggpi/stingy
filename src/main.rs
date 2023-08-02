@@ -486,7 +486,8 @@ fn stingy_main() -> Result<()> {
         }
         Some(Commands::Info {}) => {
             let info = commands::info::command_info(&db)?;
-            println!("Database URI: {}", info.database_uri)
+            println!("Database URI: {}", info.database_uri)?;
+            println!("Git SHA: {}", info.git_sha)
         }
         Some(Commands::Reset {}) => {
             let prompt =
