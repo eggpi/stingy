@@ -122,10 +122,14 @@ enum AccountOperation {
 #[derive(Debug, Subcommand)]
 enum TagOperation {
     /// List the tag rules.
-    ListRules,
+    ListRules {
+        /// The tag associated with this rule.
+        #[arg(short, long)]
+        tag: Option<String>,
+    },
     /// Add a tag rule for automatically tagging transactions.
     AddRule {
-        /// The name of the tag rule.
+        /// The tag associated with this rule.
         #[arg(short, long)]
         tag: String,
 
@@ -355,9 +359,9 @@ fn stingy_main() -> Result<()> {
             }
         }
         Some(Commands::Tags {
-            tags: TagOperation::ListRules,
+            tags: TagOperation::ListRules { tag },
         }) => {
-            let result = commands::tags::list_tag_rules(&db)?;
+            let result = commands::tags::list_tag_rules(&db, tag.as_deref())?;
             table::render_table(&mut io::stdout(), &result.columns, &result.rows)
         }
         Some(Commands::Tags {

@@ -8,9 +8,17 @@ pub struct ListTagRulesResult {
     pub rows: Vec<Vec<String>>,
 }
 
-pub fn list_tag_rules(db: &Box<dyn StingyDatabase>) -> Result<ListTagRulesResult> {
-    let mut tag_rules = db.get_all()?;
-    tag_rules.sort_by_key(|tr: &model::TagRule| tr.id);
+pub fn list_tag_rules(
+    db: &Box<dyn StingyDatabase>,
+    tag: Option<&str>,
+) -> Result<ListTagRulesResult> {
+    let mut tag_rules: Vec<model::TagRule> = db
+        .get_all()?
+        .into_iter()
+        // Option::filter(f) returns None if f returns false.
+        .filter(|tr: &model::TagRule| tag.filter(|t| !tr.tag.starts_with(*t)).is_none())
+        .collect();
+    tag_rules.sort_by_key(|tr| tr.id);
     let columns = vec![
         "ID".to_string(),
         "Tag".to_string(),
@@ -336,7 +344,7 @@ mod tags_tests {
     #[test]
     fn list_tag_rules_none() {
         let db = open_stingy_testing_database();
-        let result = list_tag_rules(&db).unwrap();
+        let result = list_tag_rules(&db, None).unwrap();
         assert_eq!(result.columns, vec!["ID", "Tag", "Description",]);
         assert_eq!(result.rows.len(), 0);
     }
@@ -380,7 +388,7 @@ mod tags_tests {
             Some(NaiveDate::from_ymd_opt(2021, 02, 26).unwrap()),
         )
         .unwrap();
-        let result = list_tag_rules(&db).unwrap();
+        let result = list_tag_rules(&db, None).unwrap();
         assert_eq!(result.rows.len(), 3);
         assert_eq!(result.rows[0][0], "1");
         assert_eq!(result.rows[0][1], "test1");
@@ -388,6 +396,51 @@ mod tags_tests {
         assert_eq!(result.rows[1][1], "test2");
         assert_eq!(result.rows[2][0], "3");
         assert_eq!(result.rows[2][1], "test3");
+    }
+
+    #[test]
+    fn list_tag_rules_filter() {
+        let db = open_stingy_testing_database();
+        add_tag_rule(
+            &db,
+            "test1",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(NaiveDate::from_ymd_opt(2021, 02, 24).unwrap()),
+        )
+        .unwrap();
+        add_tag_rule(
+            &db,
+            "test2",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(NaiveDate::from_ymd_opt(2021, 02, 25).unwrap()),
+        )
+        .unwrap();
+        // Prefix match.
+        let result = list_tag_rules(&db, Some("test")).unwrap();
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0][1], "test1");
+        assert_eq!(result.rows[1][1], "test2");
+
+        let result = list_tag_rules(&db, Some("test1")).unwrap();
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][1], "test1");
+
+        let result = list_tag_rules(&db, Some("test2")).unwrap();
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(result.rows[0][1], "test2");
+
+        let result = list_tag_rules(&db, Some("test3")).unwrap();
+        assert_eq!(result.rows.len(), 0);
     }
 
     #[test]
