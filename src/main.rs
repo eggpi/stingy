@@ -245,19 +245,21 @@ fn stingy_main() -> Result<()> {
                 binary_name
             )
         }
-        // On empty invocation, default to ByMonth.
+        // On empty invocation, default to ByMonth for the current year.
         None => {
             let account =
                 commands::accounts::get_account_or_selected(&db, None)?.map(|account| account.name);
+            let (january, today) =
+                parse_period(Some("jan-:")).map_err(|e| cmd.error(ErrorKind::InvalidValue, e))?;
             let commands::query::QueryResult { columns, rows } = commands::query::command_query(
                 &db,
                 &PreparedQuery::ByMonth,
                 &Vec::new(),
-                None, // description_contains
-                None, // amount_min
-                None, // amount_max
-                None, // from
-                None, // to
+                None,    // description_contains
+                None,    // amount_min
+                None,    // amount_max
+                january, // from
+                today,   // to
                 account.as_deref(),
             )?;
             table::render_table(&mut io::stdout(), &columns, &rows)
