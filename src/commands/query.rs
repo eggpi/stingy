@@ -981,6 +981,27 @@ mod by_month_tests {
         );
         // There are no other transactions in either account.
     }
+
+    #[test]
+    fn display_account_alias_where_available() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        crate::commands::accounts::alias(&db, "000000 - 00000000", "Alias").unwrap();
+
+        let QueryResult { rows, .. } = command_query(
+            &db,
+            &PreparedQuery::ByMonth {},
+            &vec![],
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some("000000 - 00000000"),
+        )
+        .unwrap();
+        assert_eq!(rows[0][0], "Alias");
+    }
 }
 
 #[cfg(test)]
