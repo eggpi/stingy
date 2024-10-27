@@ -25,7 +25,7 @@ Make sure you have Cargo installed (likely using [rustup](https://rustup.rs/))
 and then:
 
 ```
-$ cargo install --locked --git https://github.com/eggpi/stingy.git
+cargo install --locked --git https://github.com/eggpi/stingy.git
 ```
 
 ## Usage
@@ -38,7 +38,7 @@ First, get a CSV export of your transactions from your bank. Currently only
 Then, import the CSV with:
 
 ```
-$ stingy import --aib-csv <path-to-aib-csv>
+stingy import --aib-csv <path-to-aib-csv>
 ```
 
 Use `--revolut-csv` if importing from Revolut instead.
@@ -128,7 +128,7 @@ The git-hooks/ directory contains hooks to ensure tests are green and formatting
 is good before commits and pushes. Install them with:
 
 ```
-$ cp git-hooks/* .git/hooks/
+cp git-hooks/* .git/hooks/
 ```
 
 ### Releasing
