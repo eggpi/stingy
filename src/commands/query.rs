@@ -346,6 +346,54 @@ mod debits_tests {
     }
 
     #[test]
+    fn tags_deduplicate() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "coffee",
+            None,
+            Some("coffee"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "coffee",
+            None,
+            Some("cof"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let QueryResult { rows, .. } = command_query(
+            &db,
+            &PreparedQuery::Debits {
+                show_transaction_id: false,
+            },
+            &vec![],
+            Some("coffee"),
+            Some(3.00),
+            None,
+            None,
+            None,
+            Some("000000 - 00000000"),
+        )
+        .unwrap();
+        assert_eq!(rows.len(), 1);
+        // Two rules add the same tag 'coffee', we want it to be returned only
+        // once.
+        assert_eq!(rows[0][1], "coffee");
+    }
+
+    #[test]
     fn tag_prefix_match() {
         let db = open_stingy_testing_database();
         db.insert_test_data();

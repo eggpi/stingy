@@ -1,6 +1,6 @@
 SELECT  IFNULL(accounts.alias, account_name),
         transactions.id,
-        GROUP_CONCAT(IIF(tag IS NULL, "", tag), x'0a'),
+        REPLACE(GROUP_CONCAT(DISTINCT IIF(tag IS NULL, "", tag)), ',', x'0a'),
         {amount_column},
         description,
         posted_date,
