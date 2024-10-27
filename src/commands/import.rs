@@ -103,7 +103,7 @@ where
             let as_kv: HashMap<String, String> = header
                 .iter()
                 .zip(record.iter())
-                .map(|(h, r)| (h.clone(), r.clone().to_string()))
+                .map(|(h, r)| (h.clone(), r.to_string()))
                 .collect();
 
             transaction.account_name = as_kv
@@ -223,7 +223,7 @@ where
             let as_kv: HashMap<String, String> = header
                 .iter()
                 .zip(record.iter())
-                .map(|(h, r)| (h.clone(), r.clone().to_string()))
+                .map(|(h, r)| (h.clone(), r.to_string()))
                 .collect();
 
             transaction.account_name = as_kv
