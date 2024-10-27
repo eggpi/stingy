@@ -965,7 +965,7 @@ mod by_month_tests {
                 "72.22"
             ]
         );
-        // First Account, Feb 2021.
+        // First account, Feb 2021.
         assert_eq!(
             rows[2],
             vec![
@@ -1001,6 +1001,52 @@ mod by_month_tests {
         )
         .unwrap();
         assert_eq!(rows[0][0], "Alias");
+    }
+
+    #[test]
+    fn tagged_by_multiple_rules() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "going to the coffee shop",
+            None,
+            Some("cof"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "ordering a coffee",
+            None,
+            Some("coffee"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let QueryResult { rows, .. } = command_query(
+            &db,
+            &PreparedQuery::ByMonth {},
+            &vec![],
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some("000000 - 00000000"),
+        )
+        .unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1][1], "2021/02");
+        /* The coffee transaction is tagged twice, but aggregated only once. */
+        assert_eq!(rows[1][3], "72.22");
     }
 }
 
