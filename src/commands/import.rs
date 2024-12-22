@@ -107,7 +107,7 @@ where
                 .collect();
 
             if let Some(st) = as_kv.get("State") {
-                if st == "REVERTED" {
+                if st == "REVERTED" || st == "PENDING" {
                     continue;
                 }
             }
@@ -634,6 +634,11 @@ mod revolut_import_tests {
         "Shady,64.00,0,EUR,REVERTED,100.00"
     );
 
+    const PENDING: &str = concat!(
+        "CARD_PAYMENT,Current,2021-03-01 12:18:24,2021-03-01 8:12:27,",
+        "Shady,64.00,0,EUR,PENDING,100.00"
+    );
+
     #[test]
     fn import_one_row() {
         let csv = format!("{CSV_HEADER}\n{CARD_PAYMENT}");
@@ -708,6 +713,15 @@ mod revolut_import_tests {
     #[test]
     fn ignore_reverted() {
         let csv = format!("{CSV_HEADER}\n{}", REVERTED);
+        let db = open_stingy_testing_database();
+        import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
+        let transactions: Vec<model::Transaction> = db.get_all().unwrap();
+        assert_eq!(transactions.len(), 0);
+    }
+
+    #[test]
+    fn ignore_pending() {
+        let csv = format!("{CSV_HEADER}\n{}", PENDING);
         let db = open_stingy_testing_database();
         import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
