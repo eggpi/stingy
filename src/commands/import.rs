@@ -106,6 +106,12 @@ where
                 .map(|(h, r)| (h.clone(), r.to_string()))
                 .collect();
 
+            if let Some(st) = as_kv.get("State") {
+                if st == "REVERTED" {
+                    continue;
+                }
+            }
+
             transaction.account_name = as_kv
                 .get("Product")
                 .ok_or(anyhow!("{path}:{line} has no 'Product' field"))?
@@ -623,6 +629,11 @@ mod revolut_import_tests {
         "Cash at ATM,64.00,0,EUR,COMPLETED,100.00"
     );
 
+    const REVERTED: &str = concat!(
+        "CARD_PAYMENT,Current,2021-03-01 12:18:24,2021-03-01 8:12:27,",
+        "Shady,64.00,0,EUR,REVERTED,100.00"
+    );
+
     #[test]
     fn import_one_row() {
         let csv = format!("{CSV_HEADER}\n{CARD_PAYMENT}");
@@ -692,5 +703,14 @@ mod revolut_import_tests {
             transactions[0].transaction_type,
             model::TransactionType::Credit
         );
+    }
+
+    #[test]
+    fn ignore_reverted() {
+        let csv = format!("{CSV_HEADER}\n{}", REVERTED);
+        let db = open_stingy_testing_database();
+        import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
+        let transactions: Vec<model::Transaction> = db.get_all().unwrap();
+        assert_eq!(transactions.len(), 0);
     }
 }
