@@ -108,6 +108,7 @@ where
 
             if let Some(st) = as_kv.get("State") {
                 if st == "REVERTED" || st == "PENDING" {
+                    line += 1;
                     continue;
                 }
             }
