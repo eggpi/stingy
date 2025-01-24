@@ -29,38 +29,41 @@ pub fn list(db: &Box<dyn StingyDatabase>) -> Result<ListAccountsResult> {
 pub fn get_account_or_selected(
     db: &Box<dyn StingyDatabase>,
     account_name: Option<&str>,
-) -> Result<Option<model::Account>> {
+) -> Result<Vec<model::Account>> {
     let accounts: Vec<model::Account> = db.get_all()?;
-    let mut selected = None;
+    let mut selected = vec![];
     for account in &accounts {
         if account.selected {
-            selected = Some(account);
+            selected.push(account.clone());
         }
         if Some(account.name.as_str()) == account_name
             || (account.alias.is_some() && account.alias.as_deref() == account_name)
         {
-            return Ok(Some(account.clone()));
+            return Ok(vec![account.clone()]);
         }
     }
-    if account_name.is_none() {
-        Ok(selected.cloned())
+    if account_name.is_none() && !selected.is_empty() {
+        Ok(selected)
     } else {
         Err(anyhow!("account or alias not found."))
     }
 }
 
-pub fn select(db: &Box<dyn StingyDatabase>, account_name: &str) -> Result<model::Account> {
-    let mut account =
-        get_account_or_selected(db, Some(account_name))?.ok_or(anyhow!("account not found."))?;
-    account.selected = true;
-    db.update(&account)?;
-    Ok(account)
+pub fn select(db: &Box<dyn StingyDatabase>, account_name: &str) -> Result<Vec<model::Account>> {
+    let mut accounts = get_account_or_selected(db, Some(account_name))?;
+    for account in &mut accounts {
+        account.selected = true;
+        db.update(account)?;
+    }
+    Ok(accounts)
 }
 
 pub fn unselect(db: &Box<dyn StingyDatabase>) -> Result<()> {
-    let mut account = get_account_or_selected(db, None)?.ok_or(anyhow!("account not found."))?;
-    account.selected = false;
-    db.update(&account)?;
+    let mut accounts = get_account_or_selected(db, None)?;
+    for account in &mut accounts {
+        account.selected = false;
+        db.update(account)?;
+    }
     Ok(())
 }
 
@@ -69,18 +72,18 @@ pub fn alias(
     account_name: &str,
     alias: &str,
 ) -> Result<model::Account> {
-    let mut account =
-        get_account_or_selected(db, Some(account_name))?.ok_or(anyhow!("account not found."))?;
+    let mut accounts = get_account_or_selected(db, Some(account_name))?;
+    let account = &mut accounts[0];
     account.alias = Some(alias.to_string());
-    db.update(&account)?;
-    Ok(account)
+    db.update(account)?;
+    Ok(account.clone())
 }
 
 pub fn delete_alias(db: &Box<dyn StingyDatabase>, alias: &str) -> Result<()> {
-    let mut account =
-        get_account_or_selected(db, Some(alias))?.ok_or(anyhow!("alias not found."))?;
+    let mut accounts = get_account_or_selected(db, Some(alias))?;
+    let account = &mut accounts[0];
     account.alias = None;
-    db.update(&account)?;
+    db.update(account)?;
     Ok(())
 }
 
@@ -153,7 +156,8 @@ mod accounts_tests {
         db.insert_test_data();
 
         alias(&db, "000000 - 00000000", "0").unwrap();
-        let account = get_account_or_selected(&db, Some("0")).unwrap().unwrap();
+        let accounts = get_account_or_selected(&db, Some("0")).unwrap();
+        let account = accounts.get(0).unwrap();
         assert_eq!(account.name, "000000 - 00000000");
         assert_eq!(account.alias, Some("0".to_string()));
     }
@@ -163,9 +167,8 @@ mod accounts_tests {
         let db = open_stingy_testing_database();
         db.insert_test_data();
 
-        let account = get_account_or_selected(&db, Some("000000 - 00000000"))
-            .unwrap()
-            .unwrap();
+        let accounts = get_account_or_selected(&db, Some("000000 - 00000000")).unwrap();
+        let account = accounts.get(0).unwrap();
         assert_eq!(account.name, "000000 - 00000000");
     }
 
@@ -182,8 +185,22 @@ mod accounts_tests {
         db.insert_test_data();
         select(&db, "111111 - 11111111").unwrap();
 
-        let account = get_account_or_selected(&db, None).unwrap().unwrap();
+        let accounts = get_account_or_selected(&db, None).unwrap();
+        let account = accounts.get(0).unwrap();
         assert_eq!(account.name, "111111 - 11111111");
+    }
+
+    #[test]
+    fn select_multiple_accounts() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        select(&db, "111111 - 11111111").unwrap();
+        select(&db, "000000 - 00000000").unwrap();
+
+        let accounts = get_account_or_selected(&db, None).unwrap();
+        let mut account_names: Vec<&str> = accounts.iter().map(|ac| ac.name.as_str()).collect();
+        account_names.sort();
+        assert_eq!(account_names, ["000000 - 00000000", "111111 - 11111111"]);
     }
 
     #[test]
@@ -193,7 +210,8 @@ mod accounts_tests {
         alias(&db, "111111 - 11111111", "1").unwrap();
         select(&db, "1").unwrap();
 
-        let account = get_account_or_selected(&db, None).unwrap().unwrap();
+        let accounts = get_account_or_selected(&db, None).unwrap();
+        let account = accounts.get(0).unwrap();
         assert_eq!(account.name, "111111 - 11111111");
     }
 
@@ -203,7 +221,17 @@ mod accounts_tests {
         db.insert_test_data();
         select(&db, "111111 - 11111111").unwrap();
         unselect(&db).unwrap();
-        assert!(get_account_or_selected(&db, None).unwrap().is_none());
+        assert!(get_account_or_selected(&db, None).is_err());
+    }
+
+    #[test]
+    fn unselect_multiple() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        select(&db, "000000 - 00000000").unwrap();
+        select(&db, "111111 - 11111111").unwrap();
+        unselect(&db).unwrap();
+        assert!(get_account_or_selected(&db, None).is_err());
     }
 
     #[test]

@@ -219,7 +219,7 @@ mod tags_tests {
             add_tag_rule(&db, "test", None, None, None, None, Some(10.0), None, None).unwrap();
         let expected = AddTagRuleResult::Added {
             tag_rule_id: 1,
-            tagged_transactions: 3, // Matches only the bottom 3 expenses.
+            tagged_transactions: 5, // 3 Debits, 2 Credits in different accounts.
         };
         assert_eq!(result, expected);
     }
@@ -242,7 +242,7 @@ mod tags_tests {
         .unwrap();
         let expected = AddTagRuleResult::Added {
             tag_rule_id: 1,
-            tagged_transactions: 9,
+            tagged_transactions: 10,
         };
         assert_eq!(result, expected);
     }
@@ -265,7 +265,7 @@ mod tags_tests {
         .unwrap();
         let expected = AddTagRuleResult::Added {
             tag_rule_id: 1,
-            tagged_transactions: 5,
+            tagged_transactions: 6,
         };
         assert_eq!(result, expected);
     }
@@ -306,7 +306,7 @@ mod tags_tests {
         assert_eq!(result, expected);
 
         db.insert_test_data();
-        assert_eq!(db.count_matching_transactions("1").unwrap(), 2); // Now we have matches.
+        assert_eq!(db.count_matching_transactions("1").unwrap(), 3); // Now we have matches.
     }
 
     #[test]

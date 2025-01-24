@@ -489,9 +489,20 @@ fn query_filters_to_sql(filters: QueryFilters) -> (String, Vec<(String, sqlite::
     let mut sql = vec![];
     let mut args: HashMap<String, sqlite::Value> = HashMap::new();
 
-    if let Some(account) = filters.account {
-        sql.push("INSTR(LOWER(account_name), LOWER(:ACCOUNT))".to_string());
-        args.insert(":ACCOUNT".to_string(), account.into());
+    if filters.accounts.len() > 0 {
+        // Create parameters A0, A1, ... for each account, and the SQL to match
+        // against each of them.
+        let mut accounts_sql = vec!["(".to_string()];
+        for (i, account) in filters.accounts.iter().enumerate() {
+            let name = format!(":A{}", i);
+            args.insert(name.clone(), account.clone().into());
+            accounts_sql.push(format!("INSTR(LOWER(account_name), LOWER({}))", name));
+            if i < filters.accounts.len() - 1 {
+                accounts_sql.push("OR".to_string());
+            }
+        }
+        accounts_sql.push(")".to_string());
+        sql.push(accounts_sql.join(" "));
     }
 
     if filters.tags.len() > 0 {

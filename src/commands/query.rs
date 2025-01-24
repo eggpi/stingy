@@ -57,10 +57,10 @@ pub fn command_query(
     amount_max: Option<f64>,
     from: Option<NaiveDate>,
     to: Option<NaiveDate>,
-    account: Option<&str>,
+    accounts: Vec<&str>,
 ) -> Result<QueryResult> {
     let mut filters = database::QueryFilters {
-        account: account.map(|a| a.to_string()),
+        accounts: accounts.iter().map(|a| a.to_string()).collect(),
         tags: tags.to_vec(),
         description_contains: description_contains.map(|dc| dc.to_string()),
         amount_min: amount_min,
@@ -245,7 +245,7 @@ mod debits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(
@@ -278,7 +278,7 @@ mod debits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(
@@ -336,7 +336,7 @@ mod debits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 3);
@@ -384,7 +384,7 @@ mod debits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 1);
@@ -420,7 +420,7 @@ mod debits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 2);
@@ -446,7 +446,7 @@ mod debits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 2);
@@ -470,7 +470,7 @@ mod debits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 4);
@@ -496,7 +496,7 @@ mod debits_tests {
             Some(16.0),
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 5);
@@ -523,7 +523,7 @@ mod debits_tests {
             None,
             Some(NaiveDate::from_ymd_opt(2021, 03, 02).unwrap()),
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 2);
@@ -547,7 +547,7 @@ mod debits_tests {
             None,
             None,
             Some(NaiveDate::from_ymd_opt(2021, 02, 26).unwrap()),
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 4);
@@ -573,7 +573,7 @@ mod debits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 9);
@@ -604,7 +604,7 @@ mod debits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 9);
@@ -635,7 +635,7 @@ mod debits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows[0][4], "2021/02/26");
@@ -661,7 +661,7 @@ mod debits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows[0][0], "000000 - 00000000");
@@ -689,7 +689,7 @@ mod credits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(
@@ -722,7 +722,7 @@ mod credits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(
@@ -757,7 +757,7 @@ mod credits_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows[0][4], "2021/02/25");
@@ -782,7 +782,7 @@ mod by_month_tests {
             None,
             None,
             None,
-            None,
+            vec![],
         )
         .unwrap();
         assert_eq!(
@@ -814,7 +814,7 @@ mod by_month_tests {
             None,
             None,
             None,
-            None,
+            vec![],
         )
         .unwrap();
         assert_eq!(
@@ -845,7 +845,7 @@ mod by_month_tests {
             None,
             None,
             None,
-            None,
+            vec![],
         )
         .unwrap();
         assert_eq!(
@@ -877,7 +877,7 @@ mod by_month_tests {
             None,
             None,
             None,
-            None,
+            vec![],
         )
         .unwrap();
         assert_eq!(
@@ -903,7 +903,7 @@ mod by_month_tests {
             Some(10.0),
             None,
             None,
-            None,
+            vec![],
         )
         .unwrap();
         assert_eq!(
@@ -934,7 +934,7 @@ mod by_month_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 2);
@@ -967,7 +967,7 @@ mod by_month_tests {
     }
 
     #[test]
-    fn multiple_accounts() {
+    fn all_accounts() {
         let db = open_stingy_testing_database();
         db.insert_test_data();
 
@@ -980,7 +980,100 @@ mod by_month_tests {
             None,
             None,
             None,
+            vec![],
+        )
+        .unwrap();
+        assert_eq!(rows.len(), 5);
+        // First account, March 2021.
+        assert_eq!(
+            rows[0],
+            vec![
+                "000000 - 00000000",
+                "2021/03",
+                "0.00",
+                "67.76",
+                "-67.76",
+                "9852.76",
+                // The cumulative columns go across accounts.
+                "1102.00",
+                "139.98"
+            ]
+        );
+        // Second account, March 2021.
+        assert_eq!(
+            rows[1],
+            vec![
+                "111111 - 11111111",
+                "2021/03",
+                "100.00",
+                "0.00",
+                "100.00",
+                "100.00",
+                "1102.00",
+                "72.22"
+            ]
+        );
+        // Third account, March 2021
+        assert_eq!(
+            rows[2],
+            vec![
+                "222222 - 22222222",
+                "2021/03",
+                "1.00",
+                "0.00",
+                "1.00",
+                "2.00",
+                "1002.00",
+                "72.22"
+            ]
+        );
+
+        // First account, Feb 2021.
+        assert_eq!(
+            rows[3],
+            vec![
+                "000000 - 00000000",
+                "2021/02",
+                "1000.00",
+                "72.22",
+                "927.78",
+                "9927.52",
+                "1001.00",
+                "72.22"
+            ]
+        );
+        // Third account, Feb 2021.
+        assert_eq!(
+            rows[4],
+            vec![
+                "222222 - 22222222",
+                "2021/02",
+                "1.00",
+                "0.00",
+                "1.00",
+                "1.00",
+                "1.00",
+                "0.00"
+            ]
+        );
+        // There are no other transactions in any account.
+    }
+
+    #[test]
+    fn two_accounts() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        let QueryResult { rows, .. } = command_query(
+            &db,
+            &PreparedQuery::ByMonth {},
+            &vec![],
             None,
+            None,
+            None,
+            None,
+            None,
+            vec!["000000 - 00000000", "111111 - 11111111"],
         )
         .unwrap();
         assert_eq!(rows.len(), 3);
@@ -1013,6 +1106,7 @@ mod by_month_tests {
                 "72.22"
             ]
         );
+
         // First account, Feb 2021.
         assert_eq!(
             rows[2],
@@ -1027,7 +1121,7 @@ mod by_month_tests {
                 "72.22"
             ]
         );
-        // There are no other transactions in either account.
+        // There are no other transactions in the accounts.
     }
 
     #[test]
@@ -1045,7 +1139,7 @@ mod by_month_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows[0][0], "Alias");
@@ -1088,7 +1182,7 @@ mod by_month_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 2);
@@ -1118,7 +1212,7 @@ mod by_tag_tests {
             None,
             None,
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(
@@ -1172,7 +1266,7 @@ mod by_tag_tests {
             None,
             Some(NaiveDate::from_ymd_opt(2021, 02, 25).unwrap()),
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 3);
@@ -1182,7 +1276,7 @@ mod by_tag_tests {
     }
 
     #[test]
-    fn multiple_accounts() {
+    fn all_accounts_tags() {
         let db = open_stingy_testing_database();
         db.insert_test_data();
         crate::commands::tags::add_tag_rule(
@@ -1208,13 +1302,13 @@ mod by_tag_tests {
             None,
             Some(NaiveDate::from_ymd_opt(2021, 02, 25).unwrap()),
             None,
-            None,
+            vec![],
         )
         .unwrap();
         assert_eq!(rows.len(), 2);
         // Tags are aggregated across accounts.
         assert_eq!(rows[1][0], "credit");
-        assert_eq!(rows[1][3], "1100.00");
+        assert_eq!(rows[1][3], "1101.00");
     }
 
     #[test]
@@ -1233,7 +1327,7 @@ mod by_tag_tests {
             None,
             None,
             None,
-            None,
+            vec![],
         )
         .unwrap();
         assert_eq!(rows[0], ["", "139.98", "100.00", "0.00", "0.00"]);
@@ -1281,7 +1375,7 @@ mod by_tag_tests {
             None,
             Some(NaiveDate::from_ymd_opt(2021, 02, 25).unwrap()),
             None,
-            Some("000000 - 00000000"),
+            vec!["000000 - 00000000"],
         )
         .unwrap();
         assert_eq!(rows.len(), 2);

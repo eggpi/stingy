@@ -247,8 +247,11 @@ fn stingy_main() -> Result<()> {
         }
         // On empty invocation, default to ByMonth for the current year.
         None => {
-            let account =
-                commands::accounts::get_account_or_selected(&db, None)?.map(|account| account.name);
+            let accounts = commands::accounts::get_account_or_selected(&db, None)?;
+            let accounts_names: Vec<&str> = accounts
+                .iter()
+                .map(|account| account.name.as_str())
+                .collect();
             let (january, today) =
                 parse_period(Some("jan-:")).map_err(|e| cmd.error(ErrorKind::InvalidValue, e))?;
             let commands::query::QueryResult { columns, rows } = commands::query::command_query(
@@ -260,7 +263,7 @@ fn stingy_main() -> Result<()> {
                 None,    // amount_max
                 january, // from
                 today,   // to
-                account.as_deref(),
+                accounts_names,
             )?;
             table::render_table(&mut io::stdout(), &columns, &rows)
         }
@@ -291,8 +294,8 @@ fn stingy_main() -> Result<()> {
                         accounts.len(),
                         readers.len()
                     )?;
-                    let selected_account = commands::accounts::get_account_or_selected(&db, None)?;
-                    if selected_account.is_none() && accounts.len() > 0 {
+                    let selected_accounts = commands::accounts::get_account_or_selected(&db, None)?;
+                    if selected_accounts.is_empty() && accounts.len() > 0 {
                         println!(
                             "{TIP} No account is currently selected as the default.  Use '{binary_name} help accounts' view account options."
                         )?;
@@ -475,8 +478,11 @@ fn stingy_main() -> Result<()> {
                     ));
                 })?
             };
-            let account = commands::accounts::get_account_or_selected(&db, account.as_deref())?
-                .map(|account| account.name);
+            let accounts = commands::accounts::get_account_or_selected(&db, account.as_deref())?;
+            let account_names: Vec<&str> = accounts
+                .iter()
+                .map(|account| account.name.as_str())
+                .collect();
             let commands::query::QueryResult { columns, rows } = commands::query::command_query(
                 &db,
                 query,
@@ -486,7 +492,7 @@ fn stingy_main() -> Result<()> {
                 amount_max,
                 from,
                 to,
-                account.as_deref(),
+                account_names,
             )?;
             table::render_table(&mut io::stdout(), &columns, &rows)
         }

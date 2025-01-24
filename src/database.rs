@@ -56,7 +56,7 @@ pub struct QueryResult<RowType> {
 
 #[derive(Default)]
 pub struct QueryFilters {
-    pub account: Option<String>,
+    pub accounts: Vec<String>,
     pub tags: Vec<String>,
     pub description_contains: Option<String>,
     pub amount_min: Option<f64>,
