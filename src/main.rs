@@ -101,8 +101,8 @@ enum AccountOperation {
     List,
     /// Select an account as the default in all queries.
     Select { account: String },
-    /// Unselect the default account.
-    Unselect,
+    /// Unselect a default account, or all if none are passed.
+    Unselect { account: Option<String> },
     /// Create an alias for an account name. The alias can be used in any command that accepts an
     /// account name.
     Alias {
@@ -336,9 +336,9 @@ fn stingy_main() -> Result<()> {
             }
         },
         Some(Commands::Accounts {
-            accounts: AccountOperation::Unselect {},
+            accounts: AccountOperation::Unselect { account },
         }) => {
-            commands::accounts::unselect(&db)?;
+            commands::accounts::unselect(&db, account.as_deref())?;
             println!("Done.")
         }
         Some(Commands::Accounts {

@@ -58,8 +58,8 @@ pub fn select(db: &Box<dyn StingyDatabase>, account_name: &str) -> Result<Vec<mo
     Ok(accounts)
 }
 
-pub fn unselect(db: &Box<dyn StingyDatabase>) -> Result<()> {
-    let mut accounts = get_account_or_selected(db, None)?;
+pub fn unselect(db: &Box<dyn StingyDatabase>, account_name: Option<&str>) -> Result<()> {
+    let mut accounts = get_account_or_selected(db, account_name)?;
     for account in &mut accounts {
         account.selected = false;
         db.update(account)?;
@@ -216,22 +216,32 @@ mod accounts_tests {
     }
 
     #[test]
-    fn unselect_simple() {
+    fn unselect_one() {
         let db = open_stingy_testing_database();
         db.insert_test_data();
         select(&db, "111111 - 11111111").unwrap();
-        unselect(&db).unwrap();
+        unselect(&db, Some("111111 - 11111111")).unwrap();
         assert!(get_account_or_selected(&db, None).is_err());
     }
 
     #[test]
-    fn unselect_multiple() {
+    fn unselect_all() {
         let db = open_stingy_testing_database();
         db.insert_test_data();
         select(&db, "000000 - 00000000").unwrap();
         select(&db, "111111 - 11111111").unwrap();
-        unselect(&db).unwrap();
+        unselect(&db, None).unwrap();
         assert!(get_account_or_selected(&db, None).is_err());
+    }
+
+    #[test]
+    fn unselect_invalid() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        select(&db, "000000 - 00000000").unwrap();
+        select(&db, "111111 - 11111111").unwrap();
+        assert!(unselect(&db, Some("22222 - 22222222")).is_err());
+        assert_eq!(get_account_or_selected(&db, None).unwrap().len(), 2);
     }
 
     #[test]
