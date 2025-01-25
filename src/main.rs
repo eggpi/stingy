@@ -448,16 +448,30 @@ fn stingy_main() -> Result<()> {
         Some(Commands::Tags {
             tags: TagOperation::DeleteRule { id },
         }) => {
-            let deleted = commands::tags::delete_tag_rule(&db, id)?;
-            if deleted == 1 {
-                println!("{OK} Tag rule {id} deleted.")
-            } else if deleted == 0 {
-                bail!(cmd.error(
-                    ErrorKind::InvalidValue,
-                    format!("Rule {id} not found.\n\n{TIP} Use {binary_name} tags list-rules to see existing rules.")
-                ));
-            } else {
-                unreachable!("This shouldn't happen.");
+            let id_i64 = id
+                .parse::<i64>()
+                .map_err(|_| anyhow!("invalid rule ID (must be a number)"))?;
+            let tag_rules: Vec<model::TagRule> = db.get_all()?;
+            let tag_rule = tag_rules.iter().filter(|tr| tr.id == Some(id_i64)).next();
+            match tag_rule {
+                None => {
+                    bail!(cmd.error(
+                        ErrorKind::InvalidValue,
+                        format!("Rule {id} not found.\n\n{TIP} Use {binary_name} tags list-rules to see existing rules.")
+                    ));
+                }
+                Some(tr) => {
+                    let prompt = format!("{WARN} Delete rule {id} ({0})", tr.human_readable);
+                    if confirm(&prompt)? {
+                        let deleted = commands::tags::delete_tag_rule(&db, id)?;
+                        if deleted != 1 {
+                            unreachable!("This shouldn't happen.");
+                        }
+                        println!("{OK} Tag rule {id} deleted.")
+                    } else {
+                        println!("Canceled.")
+                    }
+                }
             }
         }
         Some(Commands::Query {
