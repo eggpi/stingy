@@ -88,6 +88,9 @@ enum Commands {
         revolut_csv: Vec<String>,
     },
 
+    /// Undo the last invocation that wrote to the database.
+    Undo {},
+
     /// List configuration paths and other information.
     Info {},
 
@@ -238,6 +241,15 @@ fn stingy_main() -> Result<()> {
         Some(Commands::Import { .. }) | Some(Commands::Reset {}) | Some(Commands::Info {}) => true,
         _ => false,
     };
+    // Don't generate an undo step for the undo command itself.
+    match &cli.command {
+        Some(Commands::Undo { .. }) => {}
+        _ => {
+            let mut invocation = vec![binary_name.clone()];
+            invocation.extend(env::args().skip(1));
+            commands::undo::begin_undo_step(&db, &invocation.join(" "))?;
+        }
+    }
     match &cli.command {
         _ if !has_transactions && !can_run_on_empty_database => {
             println!(
@@ -462,15 +474,13 @@ fn stingy_main() -> Result<()> {
                 }
                 Some(tr) => {
                     let prompt = format!("{WARN} Delete rule {id} ({0})", tr.human_readable);
-                    if confirm(&prompt)? {
+                    with_confirmation(&prompt, || {
                         let deleted = commands::tags::delete_tag_rule(&db, id)?;
                         if deleted != 1 {
                             unreachable!("This shouldn't happen.");
                         }
                         println!("{OK} Tag rule {id} deleted.")
-                    } else {
-                        println!("Canceled.")
-                    }
+                    })
                 }
             }
         }
@@ -510,6 +520,7 @@ fn stingy_main() -> Result<()> {
             )?;
             table::render_table(&mut io::stdout(), &columns, &rows)
         }
+        Some(Commands::Undo {}) => commands::undo::command_undo(&db),
         Some(Commands::Info {}) => {
             let info = commands::info::command_info(&db)?;
             println!("Database URI: {}", info.database_uri)?;
@@ -518,12 +529,7 @@ fn stingy_main() -> Result<()> {
         Some(Commands::Reset {}) => {
             let prompt =
                 format!("{WARN} This will delete the Stingy database, ALL DATA WILL BE LOST!");
-            if confirm(&prompt)? {
-                commands::reset::command_reset(db)?;
-                println!("Done.")
-            } else {
-                println!("Canceled.")
-            }
+            with_confirmation(&prompt, || commands::reset::command_reset(db))
         }
     }
 }
@@ -675,6 +681,28 @@ fn confirm(prompt: &str) -> Result<bool> {
     io::stdin().read(&mut yn)?;
     let yn = yn[0] as char;
     Ok(yn == 'y' || yn == 'Y')
+}
+
+#[cfg(not(test))]
+fn with_confirmation<F>(prompt: &str, action: F) -> Result<()>
+where
+    F: FnOnce() -> Result<()>,
+{
+    if confirm(prompt)? {
+        action()?;
+        println!("Done.")?;
+    } else {
+        println!("Canceled.")?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn with_confirmation<F>(prompt: &str, action: F) -> Result<()>
+where
+    F: FnOnce() -> Result<()>,
+{
+    action()
 }
 
 #[cfg(test)]

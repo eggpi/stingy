@@ -115,6 +115,12 @@ convenience. The alias can be used anywhere an account name is accepted.
   "travel/dublin") and then do hierarchical queries (e.g.
   `stingy query by-month --tag travel/` to see total travel transactions).
 
+* You can undo previous commands with `stingy undo` if they modified the
+  database.
+
+  The undo history persists across invocations, but is deleted when the database
+  changes in a version update.
+
 ## Development
 
 ### Building and running tests

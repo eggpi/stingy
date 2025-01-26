@@ -118,6 +118,12 @@ pub trait QueryOperations<RowType> {
     fn query(&self, filters: QueryFilters) -> Result<QueryResult<RowType>>;
 }
 
+pub trait UndoOperations {
+    fn begin_undo_step(&self, undo_step_name: &str, max_undo_steps: usize) -> Result<()>;
+    fn undo_last_step(&self) -> Result<()>;
+    fn get_last_undo_step(&self) -> Result<String>;
+}
+
 mod private {
     pub trait Reset {
         fn reset(&self) -> anyhow::Result<()>;
@@ -132,11 +138,11 @@ pub trait StingyDatabase:
     + QueryOperations<CreditsRow>
     + QueryOperations<ByMonthRow>
     + QueryOperations<ByTagRow>
+    + UndoOperations
     + private::Reset
 {
     fn get_uri(&self) -> String;
     fn count_transactions(&self) -> Result<usize>;
     fn count_matching_transactions(&self, tag_rule_id: &str) -> Result<usize>;
-    fn perform_migrations(&self) -> Result<()>;
     fn insert_test_data(&self);
 }

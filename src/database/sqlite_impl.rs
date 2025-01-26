@@ -36,6 +36,23 @@ macro_rules! sqlv {
     });
 }
 
+struct SuspendForeignKeys<'a> {
+    conn: &'a sqlite::Connection,
+}
+
+impl SuspendForeignKeys<'_> {
+    fn new(conn: &sqlite::Connection) -> SuspendForeignKeys {
+        conn.execute("PRAGMA foreign_keys = OFF;").unwrap();
+        SuspendForeignKeys { conn: conn }
+    }
+}
+
+impl Drop for SuspendForeignKeys<'_> {
+    fn drop(&mut self) {
+        self.conn.execute("PRAGMA foreign_keys = ON;").unwrap();
+    }
+}
+
 #[cfg(not(debug_assertions))]
 fn stingy_data_dir() -> Result<PathBuf> {
     dirs::data_dir()
@@ -55,13 +72,17 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "001-initial-schema.sql",
         include_str!("./sql/migrations/001-initial-schema.sql"),
     ),
+    (
+        "002-undo.sql",
+        include_str!("./sql/migrations/002-undo.sql"),
+    ),
 ];
 
-fn perform_migrations(conn: &sqlite::Connection, migrations: &[(&str, &str)]) -> Result<()> {
+fn perform_migrations(conn: &sqlite::Connection, migrations: &[(&str, &str)]) -> Result<bool> {
     let rows = sqlv!(conn, "PRAGMA user_version")?;
     // This always returns a row, user_version is 0 on an empty database.
-    let version: i64 = (&rows[0][0]).try_into()?;
-    let mut version: usize = version as usize + 1;
+    let prev_version: i64 = (&rows[0][0]).try_into()?;
+    let mut version: usize = prev_version as usize + 1;
     while version < migrations.len() {
         let migration_name = migrations[version].0;
         // We could switch to SAVEPOINT if we need to use nested transactions
@@ -86,15 +107,15 @@ fn perform_migrations(conn: &sqlite::Connection, migrations: &[(&str, &str)]) ->
             .map_err(|e| anyhow!("couldn't commit transaction: {e}"))?;
         version += 1;
     }
-    Ok(())
+    Ok((prev_version as usize) < migrations.len() - 1)
 }
 
-fn initialize_sqlite(conn: &sqlite::Connection) -> Result<()> {
-    perform_migrations(conn, MIGRATIONS).map_err(|e| anyhow!("failed to apply migration: {e}"))?;
+fn initialize_sqlite(conn: &sqlite::Connection) -> Result<bool> {
     // Foreign keys are disabled by default, and need to be enabled per connection.
     // https://www.sqlite.org/foreignkeys.html
     conn.execute("PRAGMA foreign_keys = ON;")
-        .map_err(|e| anyhow!(e))
+        .map_err(|e| anyhow!(e))?;
+    perform_migrations(conn, MIGRATIONS).map_err(|e| anyhow!("failed to apply migration: {e}"))
 }
 
 pub struct SQLiteStingyDatabase {
@@ -110,7 +131,8 @@ impl SQLiteStingyDatabase {
 
         // By default, sqlite::open also creates the file if it's not there.
         let conn = sqlite::open(format!("file:{}", db_file.display()))?;
-        initialize_sqlite(&conn)?;
+        let schema_updated = initialize_sqlite(&conn)?;
+        initialize_undo(&conn, schema_updated)?;
         Ok(Box::new(Self {
             conn: conn,
             path: db_file,
@@ -121,6 +143,7 @@ impl SQLiteStingyDatabase {
     pub fn new_for_testing() -> Box<dyn StingyDatabase> {
         let conn = sqlite::open(":memory:").unwrap();
         initialize_sqlite(&conn).unwrap();
+        initialize_undo(&conn, true).unwrap();
         Box::new(Self {
             conn: conn,
             path: PathBuf::from(":memory:"),
@@ -159,14 +182,144 @@ impl StingyDatabase for SQLiteStingyDatabase {
         Ok(count as usize)
     }
 
-    fn perform_migrations(&self) -> Result<()> {
-        perform_migrations(&self.conn, MIGRATIONS)
-    }
-
     fn insert_test_data(&self) {
         self.conn
             .execute(include_str!("./sql/test/test_data.sql"))
             .unwrap();
+    }
+}
+
+/* Macro-implement the triggers for UndoOperations for various models.
+ * In this postmodern piece of metaprogramming, we write...
+ *   ... a macro, which generates, for each model
+ *   ... code, which generates, for each SQL statement that writes
+ *   ... a TEMP trigger, which generates, at each write
+ *   ... a statement that reverses that write, stored in the undo table.
+ * See https://www.sqlite.org/undoredo.html for the inspiration.
+ */
+macro_rules! impl_undo_operations {
+    ($conn:ident, $model_type:ty, $table:ident) => {
+        let table = stringify!($table);
+        $conn.execute(format!(
+            "CREATE TEMP TRIGGER {table}_undo_insert
+             AFTER INSERT ON {table}
+             BEGIN
+                INSERT INTO undo_statements VALUES(
+                    (SELECT MAX(id) FROM undo_steps),
+                    'DELETE FROM {table} WHERE rowid = ' || new.rowid);
+             END;",
+        ))?;
+
+        let revert_update_statement = format!(
+            "'UPDATE {table} SET '|| {}",
+            <$model_type>::FIELD_NAMES_AS_ARRAY
+                .iter()
+                .map(|field_name| format!("'{field_name} = ' || quote(old.{field_name})"))
+                .collect::<Vec<String>>()
+                .join("|| ', ' ||")
+        );
+        $conn.execute(format!(
+            "CREATE TEMP TRIGGER {table}_undo_update
+             AFTER UPDATE ON {table}
+             BEGIN
+                INSERT INTO undo_statements VALUES(
+                    (SELECT MAX(id) FROM undo_steps),
+                    {revert_update_statement});
+             END;"
+        ))?;
+
+        let reinsert_on_delete_statement = format!(
+            "'INSERT INTO {table}({}) VALUES('|| {} || ')'",
+            <$model_type>::FIELD_NAMES_AS_ARRAY.join(", "),
+            <$model_type>::FIELD_NAMES_AS_ARRAY
+                .iter()
+                .map(|field_name| format!("quote(old.{field_name})"))
+                .collect::<Vec<String>>()
+                .join("|| ', ' ||")
+        );
+        $conn.execute(format!(
+            "CREATE TEMP TRIGGER {table}_undo_delete
+             BEFORE DELETE ON {table}
+             BEGIN
+                INSERT INTO undo_statements VALUES(
+                    (SELECT MAX(id) FROM undo_steps),
+                    {reinsert_on_delete_statement});
+             END;"
+        ))?;
+    };
+}
+
+fn initialize_undo(conn: &sqlite::Connection, from_scratch: bool) -> Result<()> {
+    if from_scratch {
+        conn.execute("DELETE FROM undo_steps")?;
+    }
+
+    // Clean up undo steps with no statements (created by read-only commands).
+    conn.execute(
+        "DELETE FROM undo_steps WHERE id NOT IN
+             (SELECT undo_step_id FROM undo_statements)",
+    )?;
+
+    impl_undo_operations!(conn, model::Account, accounts);
+    impl_undo_operations!(conn, model::Transaction, transactions);
+    impl_undo_operations!(conn, model::TagRule, tag_rules);
+    Ok(())
+}
+
+impl UndoOperations for SQLiteStingyDatabase {
+    fn begin_undo_step(&self, undo_step_name: &str, max_undo_steps: usize) -> Result<()> {
+        sqlv!(
+            &self.conn,
+            "INSERT INTO undo_steps VALUES(NULL, ?)",
+            undo_step_name.to_string()
+        )?;
+
+        // Truncate to the maximum number of steps.
+        sqlv!(
+            &self.conn,
+            "DELETE FROM undo_steps WHERE id <= (
+                SELECT MAX(id) FROM undo_steps) - ?",
+            max_undo_steps as i64
+        )
+        .map(|_| ())
+    }
+
+    fn undo_last_step(&self) -> Result<()> {
+        let _sfk = SuspendForeignKeys::new(&self.conn);
+        let rows = sqlv!(
+            &self.conn,
+            "SELECT undo_step_id, statement
+             FROM undo_statements WHERE undo_step_id = (
+                SELECT MAX(id) FROM undo_steps);"
+        )?;
+        if rows.is_empty() {
+            bail!("there is nothing to undo.");
+        }
+        for row in &rows {
+            let statement: String = row[1].clone().try_into()?;
+            self.conn.execute(&statement)?;
+        }
+        sqlv!(
+            &self.conn,
+            "DELETE FROM undo_steps WHERE id = ?",
+            rows[0][0].clone()
+        )
+        .map(|_| ())
+    }
+
+    fn get_last_undo_step(&self) -> Result<String> {
+        let rows = sqlv!(
+            &self.conn,
+            "SELECT name FROM undo_steps
+             ORDER BY id DESC LIMIT 1;"
+        )?;
+        if rows.is_empty() {
+            bail!("there is nothing to undo.");
+        }
+        rows[0][0]
+            .clone()
+            .try_into()
+            .map_err(|_| anyhow!("failed to fetch undo step name"))
     }
 }
 
