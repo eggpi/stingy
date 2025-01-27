@@ -42,7 +42,7 @@ pub fn get_account_or_selected(
             return Ok(vec![account.clone()]);
         }
     }
-    if account_name.is_none() && !selected.is_empty() {
+    if account_name.is_none() {
         Ok(selected)
     } else {
         Err(anyhow!("account or alias not found."))
@@ -221,7 +221,7 @@ mod accounts_tests {
         db.insert_test_data();
         select(&db, "111111 - 11111111").unwrap();
         unselect(&db, Some("111111 - 11111111")).unwrap();
-        assert!(get_account_or_selected(&db, None).is_err());
+        assert_eq!(get_account_or_selected(&db, None).unwrap().len(), 0);
     }
 
     #[test]
@@ -231,7 +231,7 @@ mod accounts_tests {
         select(&db, "000000 - 00000000").unwrap();
         select(&db, "111111 - 11111111").unwrap();
         unselect(&db, None).unwrap();
-        assert!(get_account_or_selected(&db, None).is_err());
+        assert_eq!(get_account_or_selected(&db, None).unwrap().len(), 0);
     }
 
     #[test]
