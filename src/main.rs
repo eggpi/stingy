@@ -674,6 +674,7 @@ fn last_day_of_month(year: i32, month: u32) -> Result<NaiveDate> {
         .ok_or_else(|| anyhow!(err))
 }
 
+#[cfg(not(test))]
 fn confirm(prompt: &str) -> Result<bool> {
     print!("{prompt} Proceed? [y/N] ")?;
     io::stdout().flush()?;
@@ -702,6 +703,7 @@ fn with_confirmation<F>(prompt: &str, action: F) -> Result<()>
 where
     F: FnOnce() -> Result<()>,
 {
+    let _ = prompt;
     action()
 }
 

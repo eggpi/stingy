@@ -1,6 +1,3 @@
-pub use anyhow::anyhow;
-pub use std::io::Write;
-
 // Fallible println! and print! macros, so we can catch and ignore io::ErrorKind::BrokenPipe.
 // Adapted from: https://github.com/rust-lang/rust/issues/46016#issuecomment-1242039016
 #[macro_export]

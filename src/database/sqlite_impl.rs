@@ -182,6 +182,7 @@ impl StingyDatabase for SQLiteStingyDatabase {
         Ok(count as usize)
     }
 
+    #[cfg(test)]
     fn insert_test_data(&self) {
         self.conn
             .execute(include_str!("./sql/test/test_data.sql"))

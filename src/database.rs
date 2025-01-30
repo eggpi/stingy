@@ -144,5 +144,6 @@ pub trait StingyDatabase:
     fn get_uri(&self) -> String;
     fn count_transactions(&self) -> Result<usize>;
     fn count_matching_transactions(&self, tag_rule_id: &str) -> Result<usize>;
+    #[cfg(test)]
     fn insert_test_data(&self);
 }
