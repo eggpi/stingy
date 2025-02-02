@@ -91,7 +91,7 @@ pub struct CreditsRow {
     pub credit_pct_cumulative: f64,
 }
 
-#[derive(Default, Debug, FieldNamesAsArray)]
+#[derive(Default, Debug, Clone, FieldNamesAsArray)]
 #[field_names_as_array(visibility = "pub")]
 pub struct ByMonthRow {
     pub account_name: String,

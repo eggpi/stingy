@@ -11,6 +11,7 @@ vergen = { version = "8.0.0", features = ["git", "gitcl"] }
 
 [dependencies]
 anyhow = "1.0.70"
+charming = { version = "0.4.0", features = ["ssr"] }
 chrono = "0.4.24"
 clap = { version = "4.2.1", features = ["derive"] }
 csv = "1.2.1"

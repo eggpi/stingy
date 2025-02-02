@@ -1,3 +1,4 @@
+use crate::commands::query::{QueryOutputOptions, QueryOutputParameters};
 use crate::database::model;
 use anyhow::{anyhow, bail, Result};
 use chrono;
@@ -19,7 +20,7 @@ use std::str::FromStr;
 mod commands;
 mod database;
 mod fallible_print;
-mod table;
+mod output;
 
 const TIP: &str = "💡";
 const OK: &str = "✅";
@@ -266,8 +267,12 @@ fn stingy_main() -> Result<()> {
                 .collect();
             let (january, today) =
                 parse_period(Some("jan-:")).map_err(|e| cmd.error(ErrorKind::InvalidValue, e))?;
-            let commands::query::QueryResult { columns, rows } = commands::query::command_query(
+            commands::query::command_query(
                 &db,
+                QueryOutputParameters {
+                    writer: &mut io::stdout(),
+                    options: QueryOutputOptions::ChartOnly,
+                },
                 &PreparedQuery::ByMonth,
                 &Vec::new(),
                 None,    // description_contains
@@ -276,8 +281,7 @@ fn stingy_main() -> Result<()> {
                 january, // from
                 today,   // to
                 accounts_names,
-            )?;
-            table::render_table(&mut io::stdout(), &columns, &rows)
+            )
         }
         Some(Commands::Import {
             aib_csv,
@@ -336,7 +340,7 @@ fn stingy_main() -> Result<()> {
             accounts: AccountOperation::List,
         }) => {
             let result = commands::accounts::list(&db)?;
-            table::render_table(&mut io::stdout(), &result.columns, &result.rows)
+            output::table::render_table(&mut io::stdout(), &result.columns, &result.rows)
         }
         Some(Commands::Accounts {
             accounts: AccountOperation::Select { account },
@@ -379,7 +383,7 @@ fn stingy_main() -> Result<()> {
             tags: TagOperation::ListRules { tag },
         }) => {
             let result = commands::tags::list_tag_rules(&db, tag.as_deref())?;
-            table::render_table(&mut io::stdout(), &result.columns, &result.rows)
+            output::table::render_table(&mut io::stdout(), &result.columns, &result.rows)
         }
         Some(Commands::Tags {
             tags:
@@ -507,8 +511,17 @@ fn stingy_main() -> Result<()> {
                 .iter()
                 .map(|account| account.name.as_str())
                 .collect();
-            let commands::query::QueryResult { columns, rows } = commands::query::command_query(
+            let output_parameters = QueryOutputParameters {
+                writer: &mut io::stdout(),
+                options: QueryOutputOptions::ChartAndTableWithConfirmation(Box::new(|| {
+                    confirm(&format!(
+                        "{TIP} You can also view the full data in table format."
+                    ))
+                })),
+            };
+            commands::query::command_query(
                 &db,
+                output_parameters,
                 query,
                 tags,
                 description_contains.as_deref(),
@@ -517,8 +530,7 @@ fn stingy_main() -> Result<()> {
                 from,
                 to,
                 account_names,
-            )?;
-            table::render_table(&mut io::stdout(), &columns, &rows)
+            )
         }
         Some(Commands::Undo {}) => commands::undo::command_undo(&db),
         Some(Commands::Info {}) => {

@@ -1,3 +1,5 @@
+use crate::database;
+use crate::output::format::ToOutputFormat;
 use anyhow::{anyhow, Result};
 use pager::Pager;
 use std::cmp::{max, min};
@@ -177,6 +179,156 @@ where
     )?;
 
     Ok(())
+}
+
+pub fn render_debits_table<W>(
+    writer: &mut W,
+    rows: &[database::DebitsRow],
+    show_transaction_id: bool,
+) -> Result<()>
+where
+    W: Write,
+{
+    let mut columns = vec![
+        "Account".to_string(),
+        "Tag(s)".to_string(),
+        "Debit Amount ↑".to_string(),
+        "Description".to_string(),
+        "Date".to_string(),
+        "Debit (cumulative) ↓".to_string(),
+        "% (cumulative) ↓".to_string(),
+    ];
+    if show_transaction_id {
+        columns.insert(1, "ID".to_string());
+    }
+    let rows: Vec<Vec<String>> = rows
+        .iter()
+        .map(|r: &database::DebitsRow| {
+            let mut row = vec![
+                r.account_name.to_output_format(),
+                (&r.tags).to_output_format(),
+                r.debit_amount.to_output_format(),
+                r.description.to_output_format(),
+                r.posted_date.to_output_format(),
+                r.debit_cumulative.to_output_format(),
+                r.debit_pct_cumulative.to_output_format(),
+            ];
+            if show_transaction_id {
+                row.insert(1, r.transaction_id.to_output_format());
+            }
+            row
+        })
+        .collect();
+    render_table(writer, &columns, &rows)
+}
+
+pub fn render_credits_table<W>(
+    writer: &mut W,
+    rows: &[database::CreditsRow],
+    show_transaction_id: bool,
+) -> Result<()>
+where
+    W: Write,
+{
+    let mut columns = vec![
+        "Account".to_string(),
+        "Tag(s)".to_string(),
+        "Credit Amount ↑".to_string(),
+        "Description".to_string(),
+        "Date".to_string(),
+        "Credit (cumulative) ↓".to_string(),
+        "% (cumulative) ↓".to_string(),
+    ];
+    if show_transaction_id {
+        columns.insert(1, "ID".to_string());
+    }
+    let rows: Vec<Vec<String>> = rows
+        .iter()
+        .map(|r: &database::CreditsRow| {
+            let mut row = vec![
+                r.account_name.to_output_format(),
+                (&r.tags).to_output_format(),
+                r.credit_amount.to_output_format(),
+                r.description.to_output_format(),
+                r.posted_date.to_output_format(),
+                r.credit_cumulative.to_output_format(),
+                r.credit_pct_cumulative.to_output_format(),
+            ];
+            if show_transaction_id {
+                row.insert(1, r.transaction_id.to_output_format());
+            }
+            row
+        })
+        .collect();
+    render_table(writer, &columns, &rows)
+}
+
+pub fn render_by_month_table<W>(
+    writer: &mut W,
+    rows: &[database::ByMonthRow],
+    show_balance: bool,
+) -> Result<()>
+where
+    W: Write,
+{
+    let mut columns = vec![
+        "Account".to_string(),
+        "Month ↑".to_string(),
+        "Credit Amount".to_string(),
+        "Debit Amount".to_string(),
+        "Credit - Debit".to_string(),
+        "Credit (cumulative) ↑".to_string(),
+        "Debit (cumulative) ↑".to_string(),
+    ];
+    if show_balance {
+        columns.insert(5, "Balance".to_string());
+    }
+    let rows: Vec<Vec<String>> = rows
+        .iter()
+        .map(|r: &database::ByMonthRow| {
+            let mut row = vec![
+                r.account_name.to_output_format(),
+                // FIXME can't use to_output_format() because we want YYYY/MM.
+                format!("{}", r.month.format("%Y/%m")),
+                r.credit_amount.to_output_format(),
+                r.debit_amount.to_output_format(),
+                r.credit_minus_debit.to_output_format(),
+                r.credit_cumulative.to_output_format(),
+                r.debit_cumulative.to_output_format(),
+            ];
+            if show_balance {
+                row.insert(5, r.balance.to_output_format());
+            }
+            row
+        })
+        .collect();
+    render_table(writer, &columns, &rows)
+}
+
+pub fn render_by_tag_table<W>(writer: &mut W, rows: &[database::ByTagRow]) -> Result<()>
+where
+    W: Write,
+{
+    let columns = vec![
+        "Tag".to_string(),
+        "Debit Amount ↑".to_string(),
+        "Debit Amount %".to_string(),
+        "Credit Amount".to_string(),
+        "Credit Amount %".to_string(),
+    ];
+    let rows: Vec<Vec<String>> = rows
+        .iter()
+        .map(|r: &database::ByTagRow| {
+            vec![
+                r.tag.to_output_format(),
+                r.tag_debit.to_output_format(),
+                r.tag_debit_pct.to_output_format(),
+                r.tag_credit.to_output_format(),
+                r.tag_credit_pct.to_output_format(),
+            ]
+        })
+        .collect();
+    render_table(writer, &columns, &rows)
 }
 
 #[cfg(test)]
