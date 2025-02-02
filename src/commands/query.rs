@@ -152,6 +152,9 @@ pub fn command_query(
                 && amount_min.is_none()
                 && amount_max.is_none();
             let query_result = db.query(filters)?;
+            use crate::output::chart;
+            use std::io;
+            chart::render_by_month_chart(&mut io::stdout(), &query_result.rows).unwrap();
             let mut columns = vec![
                 "Account".to_string(),
                 "Month ↑".to_string(),
@@ -198,6 +201,9 @@ pub fn command_query(
                 None => Vec::new(),
             };
             let query_result = db.query(filters)?;
+            use crate::output::chart;
+            use std::io;
+            chart::render_by_tag_chart(&mut io::stdout(), &query_result.rows).unwrap();
             let columns = vec![
                 "Tag".to_string(),
                 "Debit Amount ↑".to_string(),

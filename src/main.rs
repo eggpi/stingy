@@ -19,7 +19,7 @@ use std::str::FromStr;
 mod commands;
 mod database;
 mod fallible_print;
-mod table;
+mod output;
 
 const TIP: &str = "💡";
 const OK: &str = "✅";
@@ -277,7 +277,7 @@ fn stingy_main() -> Result<()> {
                 today,   // to
                 accounts_names,
             )?;
-            table::render_table(&mut io::stdout(), &columns, &rows)
+            output::table::render_table(&mut io::stdout(), &columns, &rows)
         }
         Some(Commands::Import {
             aib_csv,
@@ -336,7 +336,7 @@ fn stingy_main() -> Result<()> {
             accounts: AccountOperation::List,
         }) => {
             let result = commands::accounts::list(&db)?;
-            table::render_table(&mut io::stdout(), &result.columns, &result.rows)
+            output::table::render_table(&mut io::stdout(), &result.columns, &result.rows)
         }
         Some(Commands::Accounts {
             accounts: AccountOperation::Select { account },
@@ -379,7 +379,7 @@ fn stingy_main() -> Result<()> {
             tags: TagOperation::ListRules { tag },
         }) => {
             let result = commands::tags::list_tag_rules(&db, tag.as_deref())?;
-            table::render_table(&mut io::stdout(), &result.columns, &result.rows)
+            output::table::render_table(&mut io::stdout(), &result.columns, &result.rows)
         }
         Some(Commands::Tags {
             tags:
@@ -518,7 +518,7 @@ fn stingy_main() -> Result<()> {
                 to,
                 account_names,
             )?;
-            table::render_table(&mut io::stdout(), &columns, &rows)
+            output::table::render_table(&mut io::stdout(), &columns, &rows)
         }
         Some(Commands::Undo {}) => commands::undo::command_undo(&db),
         Some(Commands::Info {}) => {
