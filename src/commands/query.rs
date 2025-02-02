@@ -1,55 +1,52 @@
 use crate::database;
+use crate::database::model;
+use crate::output::{chart, table};
 use crate::PreparedQuery;
 use anyhow::Result;
 use chrono::NaiveDate;
+use std::io::Write;
 
-pub struct QueryResult {
-    pub columns: Vec<String>,
-    pub rows: Vec<Vec<String>>,
+pub enum QueryOutputOptions {
+    ChartOnly,
+    TableOnly,
+    ChartAndTableWithConfirmation(Box<dyn FnOnce() -> Result<bool>>),
 }
 
-trait ToRowFormat {
-    fn to_row_format(&self) -> String;
+pub struct QueryOutputParameters<'a, W>
+where
+    W: Write,
+{
+    pub writer: &'a mut W,
+    pub options: QueryOutputOptions,
 }
 
-impl ToRowFormat for String {
-    fn to_row_format(&self) -> String {
-        self.to_string()
+fn do_output<W, C, T>(output: QueryOutputParameters<W>, mut chart: C, mut table: T) -> Result<()>
+where
+    C: FnMut(&mut W) -> Result<()>,
+    T: FnMut(&mut W) -> Result<()>,
+    W: Write,
+{
+    let (show_chart, mut show_table) = match output.options {
+        QueryOutputOptions::ChartOnly | QueryOutputOptions::ChartAndTableWithConfirmation(_) => {
+            (true, false)
+        }
+        QueryOutputOptions::TableOnly => (false, true),
+    };
+    if show_chart {
+        chart(output.writer)?;
     }
-}
-
-impl ToRowFormat for NaiveDate {
-    fn to_row_format(&self) -> String {
-        format!("{}", self.format("%Y/%m/%d"))
+    if let QueryOutputOptions::ChartAndTableWithConfirmation(confirm) = output.options {
+        show_table = confirm()?;
     }
-}
-
-impl ToRowFormat for i64 {
-    fn to_row_format(&self) -> String {
-        format!("{:3}", self)
+    if show_table {
+        table(output.writer)?;
     }
+    Ok(())
 }
 
-impl ToRowFormat for f64 {
-    fn to_row_format(&self) -> String {
-        format!("{:.02}", self)
-    }
-}
-
-impl ToRowFormat for str {
-    fn to_row_format(&self) -> String {
-        self.to_string()
-    }
-}
-
-impl ToRowFormat for Vec<String> {
-    fn to_row_format(&self) -> String {
-        self.join("\n")
-    }
-}
-
-pub fn command_query(
+pub fn command_query<W>(
     db: &Box<dyn database::StingyDatabase>,
+    output: QueryOutputParameters<W>,
     query: &PreparedQuery,
     tags: &Vec<String>,
     description_contains: Option<&str>,
@@ -58,7 +55,10 @@ pub fn command_query(
     from: Option<NaiveDate>,
     to: Option<NaiveDate>,
     accounts: Vec<&str>,
-) -> Result<QueryResult> {
+) -> Result<()>
+where
+    W: Write,
+{
     let mut filters = database::QueryFilters {
         accounts: accounts.iter().map(|a| a.to_string()).collect(),
         tags: tags.to_vec(),
@@ -70,80 +70,18 @@ pub fn command_query(
         transaction_types: Vec::new(),
     };
 
-    let (columns, rows) = match query {
+    match query {
         PreparedQuery::Debits {
             show_transaction_id,
         } => {
             let query_result = db.query(filters)?;
-            let mut columns = vec![
-                "Account".to_string(),
-                "Tag(s)".to_string(),
-                "Debit Amount ↑".to_string(),
-                "Description".to_string(),
-                "Date".to_string(),
-                "Debit (cumulative) ↓".to_string(),
-                "% (cumulative) ↓".to_string(),
-            ];
-            if *show_transaction_id {
-                columns.insert(1, "ID".to_string());
-            }
-            let rows = query_result
-                .rows
-                .iter()
-                .map(|r: &database::DebitsRow| {
-                    let mut row = vec![
-                        r.account_name.to_row_format(),
-                        (&r.tags).to_row_format(),
-                        r.debit_amount.to_row_format(),
-                        r.description.to_row_format(),
-                        r.posted_date.to_row_format(),
-                        r.debit_cumulative.to_row_format(),
-                        r.debit_pct_cumulative.to_row_format(),
-                    ];
-                    if *show_transaction_id {
-                        row.insert(1, r.transaction_id.to_row_format());
-                    }
-                    row
-                })
-                .collect();
-            (columns, rows)
+            table::render_debits_table(output.writer, &query_result.rows, *show_transaction_id)
         }
         PreparedQuery::Credits {
             show_transaction_id,
         } => {
             let query_result = db.query(filters)?;
-            let mut columns = vec![
-                "Account".to_string(),
-                "Tag(s)".to_string(),
-                "Credit Amount ↑".to_string(),
-                "Description".to_string(),
-                "Date".to_string(),
-                "Credit (cumulative) ↓".to_string(),
-                "% (cumulative) ↓".to_string(),
-            ];
-            if *show_transaction_id {
-                columns.insert(1, "ID".to_string());
-            }
-            let rows = query_result
-                .rows
-                .iter()
-                .map(|r: &database::CreditsRow| {
-                    let mut row = vec![
-                        r.account_name.to_row_format(),
-                        (&r.tags).to_row_format(),
-                        r.credit_amount.to_row_format(),
-                        r.description.to_row_format(),
-                        r.posted_date.to_row_format(),
-                        r.credit_cumulative.to_row_format(),
-                        r.credit_pct_cumulative.to_row_format(),
-                    ];
-                    if *show_transaction_id {
-                        row.insert(1, r.transaction_id.to_row_format());
-                    }
-                    row
-                })
-                .collect();
-            (columns, rows)
+            table::render_credits_table(output.writer, &query_result.rows, *show_transaction_id)
         }
         PreparedQuery::ByMonth => {
             // Balance only really makes sense for some types of filter.
@@ -152,76 +90,31 @@ pub fn command_query(
                 && amount_min.is_none()
                 && amount_max.is_none();
             let query_result = db.query(filters)?;
-            let mut columns = vec![
-                "Account".to_string(),
-                "Month ↑".to_string(),
-                "Credit Amount".to_string(),
-                "Debit Amount".to_string(),
-                "Credit - Debit".to_string(),
-                "Credit (cumulative) ↑".to_string(),
-                "Debit (cumulative) ↑".to_string(),
-            ];
-            if show_balance {
-                columns.insert(5, "Balance".to_string());
-            }
-            let rows = query_result
-                .rows
-                .iter()
-                .map(|r: &database::ByMonthRow| {
-                    let mut row = vec![
-                        r.account_name.to_row_format(),
-                        // FIXME can't use to_row_format() because we want YYYY/MM.
-                        format!("{}", r.month.format("%Y/%m")),
-                        r.credit_amount.to_row_format(),
-                        r.debit_amount.to_row_format(),
-                        r.credit_minus_debit.to_row_format(),
-                        r.credit_cumulative.to_row_format(),
-                        r.debit_cumulative.to_row_format(),
-                    ];
-                    if show_balance {
-                        row.insert(5, r.balance.to_row_format());
-                    }
-                    row
-                })
-                .collect();
-            (columns, rows)
+            do_output(
+                output,
+                |writer| chart::render_by_month_chart(writer, &query_result.rows, show_balance),
+                |writer| table::render_by_month_table(writer, &query_result.rows, show_balance),
+            )
         }
         PreparedQuery::ByTag { transaction_type } => {
             filters.transaction_types = match transaction_type {
                 Some(crate::TransactionType::debit) => vec![
-                    database::model::TransactionType::Debit,
-                    database::model::TransactionType::DirectDebit,
+                    model::TransactionType::Debit,
+                    model::TransactionType::DirectDebit,
                 ],
                 Some(crate::TransactionType::credit) => {
-                    vec![database::model::TransactionType::Credit]
+                    vec![model::TransactionType::Credit]
                 }
                 None => Vec::new(),
             };
             let query_result = db.query(filters)?;
-            let columns = vec![
-                "Tag".to_string(),
-                "Debit Amount ↑".to_string(),
-                "Debit Amount %".to_string(),
-                "Credit Amount".to_string(),
-                "Credit Amount %".to_string(),
-            ];
-            let rows = query_result
-                .rows
-                .iter()
-                .map(|r: &database::ByTagRow| {
-                    vec![
-                        r.tag.to_row_format(),
-                        r.tag_debit.to_row_format(),
-                        r.tag_debit_pct.to_row_format(),
-                        r.tag_credit.to_row_format(),
-                        r.tag_credit_pct.to_row_format(),
-                    ]
-                })
-                .collect();
-            (columns, rows)
+            do_output(
+                output,
+                |writer| chart::render_by_tag_chart(writer, &query_result.rows),
+                |writer| table::render_by_tag_table(writer, &query_result.rows),
+            )
         }
-    };
-    Ok(QueryResult { columns, rows })
+    }
 }
 
 #[cfg(test)]
