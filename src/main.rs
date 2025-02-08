@@ -64,6 +64,10 @@ enum Commands {
         #[arg(short, long, use_value_delimiter = true, global = true)]
         tags: Vec<String>,
 
+        /// Exclude transactions with these tags.
+        #[arg(short, long, use_value_delimiter = true, global = true)]
+        not_tags: Vec<String>,
+
         /// Only consider transactions whose description (partially) matches this value.
         #[arg(short, long, global = true)]
         description_contains: Option<String>,
@@ -274,12 +278,13 @@ fn stingy_main() -> Result<()> {
                     options: QueryOutputOptions::ChartOnly,
                 },
                 &PreparedQuery::ByMonth,
-                &Vec::new(),
-                None,    // description_contains
-                None,    // amount_min
-                None,    // amount_max
-                january, // from
-                today,   // to
+                &Vec::new(), // tags
+                &Vec::new(), // not_tags
+                None,        // description_contains
+                None,        // amount_min
+                None,        // amount_max
+                january,     // from
+                today,       // to
                 accounts_names,
             )
         }
@@ -492,6 +497,7 @@ fn stingy_main() -> Result<()> {
             query,
             period,
             tags,
+            not_tags,
             description_contains,
             amount_range,
             account,
@@ -524,6 +530,7 @@ fn stingy_main() -> Result<()> {
                 output_parameters,
                 query,
                 tags,
+                not_tags,
                 description_contains.as_deref(),
                 amount_min,
                 amount_max,

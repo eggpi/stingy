@@ -49,6 +49,7 @@ pub fn command_query<W>(
     output: QueryOutputParameters<W>,
     query: &PreparedQuery,
     tags: &Vec<String>,
+    not_tags: &Vec<String>,
     description_contains: Option<&str>,
     amount_min: Option<f64>,
     amount_max: Option<f64>,
@@ -62,6 +63,7 @@ where
     let mut filters = database::QueryFilters {
         accounts: accounts.iter().map(|a| a.to_string()).collect(),
         tags: tags.to_vec(),
+        not_tags: not_tags.to_vec(),
         description_contains: description_contains.map(|dc| dc.to_string()),
         amount_min: amount_min,
         amount_max: amount_max,
@@ -86,6 +88,7 @@ where
         PreparedQuery::ByMonth => {
             // Balance only really makes sense for some types of filter.
             let show_balance = tags.len() == 0
+                && not_tags.len() == 0
                 && description_contains.is_none()
                 && amount_min.is_none()
                 && amount_max.is_none();
