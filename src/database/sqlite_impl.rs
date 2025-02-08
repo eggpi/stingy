@@ -642,28 +642,35 @@ fn query_filters_to_sql(filters: QueryFilters) -> (String, Vec<(String, sqlite::
         sql.push(accounts_sql.join(" "));
     }
 
-    if filters.tags.len() > 0 {
-        // Create parameters T0, T1, ... for each tag.
-        let mut tag_parameters = vec![];
-        for (i, tag) in filters.tags.iter().enumerate() {
-            let name = format!(":T{}", i);
-            tag_parameters.push(name.clone());
-            args.insert(name, tag.clone().into());
+    let mut handle_tags = |tags: &Vec<String>, exclude| {
+        if tags.len() > 0 {
+            // Create parameters T(N)0, T(N)1, ... for each tag.
+            let mut tag_parameters = vec![];
+            let maybe_not = if exclude { "N" } else { "" };
+            for (i, tag) in tags.iter().enumerate() {
+                let name = format!(":T{maybe_not}{i}");
+                tag_parameters.push(name.clone());
+                args.insert(name, tag.clone().into());
+            }
+            // Generate SQL to prefix-match the tags to the parameters we
+            // created above.
+            let maybe_not = if exclude { "NOT" } else { "" };
+            sql.push(format!(
+                "transactions.id {maybe_not} IN (
+                            SELECT DISTINCT transaction_id
+                            FROM transactions_tags
+                            WHERE ({}))",
+                tag_parameters
+                    .iter()
+                    .map(|tp| format!("SUBSTR(tag, 1, LENGTH({tp})) = {tp}"))
+                    .collect::<Vec<_>>()
+                    .join(" OR ")
+            ));
         }
-        // Generate SQL to prefix-match the tags to the parameters we
-        // created above.
-        sql.push(format!(
-            "transactions.id IN (
-                        SELECT DISTINCT transaction_id
-                        FROM transactions_tags
-                        WHERE ({}))",
-            tag_parameters
-                .iter()
-                .map(|tp| format!("SUBSTR(tag, 1, LENGTH({tp})) = {tp}"))
-                .collect::<Vec<_>>()
-                .join(" OR ")
-        ));
-    }
+    };
+
+    handle_tags(&filters.tags, false);
+    handle_tags(&filters.not_tags, true);
 
     if let Some(description_contains) = filters.description_contains {
         sql.push("INSTR(LOWER(description), LOWER(:DESCRIPTION_CONTAINS))".to_string());

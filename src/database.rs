@@ -58,6 +58,7 @@ pub struct QueryResult<RowType> {
 pub struct QueryFilters {
     pub accounts: Vec<String>,
     pub tags: Vec<String>,
+    pub not_tags: Vec<String>,
     pub description_contains: Option<String>,
     pub amount_min: Option<f64>,
     pub amount_max: Option<f64>,
