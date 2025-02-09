@@ -6,47 +6,9 @@ use anyhow::Result;
 use chrono::NaiveDate;
 use std::io::Write;
 
-pub enum QueryOutputOptions {
-    ChartOnly,
-    TableOnly,
-    ChartAndTableWithConfirmation(Box<dyn FnOnce() -> Result<bool>>),
-}
-
-pub struct QueryOutputParameters<'a, W>
-where
-    W: Write,
-{
-    pub writer: &'a mut W,
-    pub options: QueryOutputOptions,
-}
-
-fn do_output<W, C, T>(output: QueryOutputParameters<W>, mut chart: C, mut table: T) -> Result<()>
-where
-    C: FnMut(&mut W) -> Result<()>,
-    T: FnMut(&mut W) -> Result<()>,
-    W: Write,
-{
-    let (show_chart, mut show_table) = match output.options {
-        QueryOutputOptions::ChartOnly | QueryOutputOptions::ChartAndTableWithConfirmation(_) => {
-            (true, false)
-        }
-        QueryOutputOptions::TableOnly => (false, true),
-    };
-    if show_chart {
-        chart(output.writer)?;
-    }
-    if let QueryOutputOptions::ChartAndTableWithConfirmation(confirm) = output.options {
-        show_table = confirm()?;
-    }
-    if show_table {
-        table(output.writer)?;
-    }
-    Ok(())
-}
-
 pub fn command_query<W>(
     db: &Box<dyn database::StingyDatabase>,
-    output: QueryOutputParameters<W>,
+    writer: &mut W,
     query: &PreparedQuery,
     tags: &Vec<String>,
     not_tags: &Vec<String>,
@@ -77,15 +39,15 @@ where
             show_transaction_id,
         } => {
             let query_result = db.query(filters)?;
-            table::render_debits_table(output.writer, &query_result.rows, *show_transaction_id)
+            table::render_debits_table(writer, &query_result.rows, *show_transaction_id)
         }
         PreparedQuery::Credits {
             show_transaction_id,
         } => {
             let query_result = db.query(filters)?;
-            table::render_credits_table(output.writer, &query_result.rows, *show_transaction_id)
+            table::render_credits_table(writer, &query_result.rows, *show_transaction_id)
         }
-        PreparedQuery::ByMonth => {
+        PreparedQuery::ByMonth { table } => {
             // Balance only really makes sense for some types of filter.
             let show_balance = tags.len() == 0
                 && not_tags.len() == 0
@@ -93,13 +55,16 @@ where
                 && amount_min.is_none()
                 && amount_max.is_none();
             let query_result = db.query(filters)?;
-            do_output(
-                output,
-                |writer| chart::render_by_month_chart(writer, &query_result.rows, show_balance),
-                |writer| table::render_by_month_table(writer, &query_result.rows, show_balance),
-            )
+            if *table {
+                table::render_by_month_table(writer, &query_result.rows, show_balance)
+            } else {
+                chart::render_by_month_chart(writer, &query_result.rows, show_balance)
+            }
         }
-        PreparedQuery::ByTag { transaction_type } => {
+        PreparedQuery::ByTag {
+            transaction_type,
+            table,
+        } => {
             filters.transaction_types = match transaction_type {
                 Some(crate::TransactionType::debit) => vec![
                     model::TransactionType::Debit,
@@ -111,11 +76,11 @@ where
                 None => Vec::new(),
             };
             let query_result = db.query(filters)?;
-            do_output(
-                output,
-                |writer| chart::render_by_tag_chart(writer, &query_result.rows),
-                |writer| table::render_by_tag_table(writer, &query_result.rows),
-            )
+            if *table {
+                table::render_by_tag_table(writer, &query_result.rows)
+            } else {
+                chart::render_by_tag_chart(writer, &query_result.rows)
+            }
         }
     }
 }

@@ -1,4 +1,3 @@
-use crate::commands::query::{QueryOutputOptions, QueryOutputParameters};
 use crate::database::model;
 use anyhow::{anyhow, bail, Result};
 use chrono;
@@ -195,12 +194,20 @@ pub enum PreparedQuery {
         show_transaction_id: bool,
     },
     /// A summary of expenses, grouped by month.
-    ByMonth,
+    ByMonth {
+        /// Show the results as a table instead of the default chart.
+        #[arg(long, global = true)]
+        table: bool,
+    },
     /// A summary of expenses, grouped by tag.
     ByTag {
         /// Only consider transactions of this type.
         #[arg(long)]
         transaction_type: Option<TransactionType>,
+
+        /// Show the results as a table instead of the default chart.
+        #[arg(long, global = true)]
+        table: bool,
     },
 }
 
@@ -273,11 +280,8 @@ fn stingy_main() -> Result<()> {
                 parse_period(Some("jan-:")).map_err(|e| cmd.error(ErrorKind::InvalidValue, e))?;
             commands::query::command_query(
                 &db,
-                QueryOutputParameters {
-                    writer: &mut io::stdout(),
-                    options: QueryOutputOptions::ChartOnly,
-                },
-                &PreparedQuery::ByMonth,
+                &mut io::stdout(),
+                &PreparedQuery::ByMonth { table: false },
                 &Vec::new(), // tags
                 &Vec::new(), // not_tags
                 None,        // description_contains
@@ -517,17 +521,9 @@ fn stingy_main() -> Result<()> {
                 .iter()
                 .map(|account| account.name.as_str())
                 .collect();
-            let output_parameters = QueryOutputParameters {
-                writer: &mut io::stdout(),
-                options: QueryOutputOptions::ChartAndTableWithConfirmation(Box::new(|| {
-                    confirm(&format!(
-                        "{TIP} You can also view the full data in table format."
-                    ))
-                })),
-            };
             commands::query::command_query(
                 &db,
-                output_parameters,
+                &mut io::stdout(),
                 query,
                 tags,
                 not_tags,
