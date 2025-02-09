@@ -36,23 +36,6 @@ macro_rules! sqlv {
     });
 }
 
-struct SuspendForeignKeys<'a> {
-    conn: &'a sqlite::Connection,
-}
-
-impl SuspendForeignKeys<'_> {
-    fn new(conn: &sqlite::Connection) -> SuspendForeignKeys {
-        conn.execute("PRAGMA foreign_keys = OFF;").unwrap();
-        SuspendForeignKeys { conn: conn }
-    }
-}
-
-impl Drop for SuspendForeignKeys<'_> {
-    fn drop(&mut self) {
-        self.conn.execute("PRAGMA foreign_keys = ON;").unwrap();
-    }
-}
-
 #[cfg(not(debug_assertions))]
 fn stingy_data_dir() -> Result<PathBuf> {
     dirs::data_dir()
@@ -286,12 +269,12 @@ impl UndoOperations for SQLiteStingyDatabase {
     }
 
     fn undo_last_step(&self) -> Result<()> {
-        let _sfk = SuspendForeignKeys::new(&self.conn);
         let rows = sqlv!(
             &self.conn,
             "SELECT undo_step_id, statement
              FROM undo_statements WHERE undo_step_id = (
-                SELECT MAX(id) FROM undo_steps);"
+                SELECT MAX(id) FROM undo_steps)
+             ORDER BY rowid DESC"
         )?;
         if rows.is_empty() {
             bail!("there is nothing to undo.");

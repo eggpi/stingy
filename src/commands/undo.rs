@@ -61,7 +61,6 @@ mod undo_tests {
     #[test]
     fn undo_tag_rule_deletion() {
         let db = open_stingy_testing_database();
-        begin_undo_step(&db, "undo_tag_rule_deletion").unwrap();
 
         tags::add_tag_rule(
             &db,
@@ -75,6 +74,7 @@ mod undo_tests {
             Some(NaiveDate::from_ymd_opt(2021, 02, 24).unwrap()),
         )
         .unwrap();
+        begin_undo_step(&db, "undo_tag_rule_deletion").unwrap();
         tags::delete_tag_rule(&db, "1").unwrap();
 
         command_undo(&db).unwrap();
