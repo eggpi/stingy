@@ -1,6 +1,6 @@
 use crate::database;
 use crate::output::format::ToOutputFormat;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use pager::Pager;
 use std::cmp::{max, min};
 use std::io::Write;
@@ -93,6 +93,9 @@ where
     let max_table_width = termwidth;
     // Maximum column width, without its borders, with padding.
     let max_column_width = (max_table_width - 1) / n_columns - 1;
+    if max_column_width == 0 {
+        bail!("Not enough space to render the table.");
+    }
 
     // Wrap the text in the cells at the maximum cell width.
     let rows: Vec<Vec<_>> = rows
