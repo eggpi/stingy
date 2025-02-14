@@ -1,4 +1,5 @@
 use crate::database::model;
+use crate::output::Output;
 use anyhow::{anyhow, bail, Result};
 use chrono;
 use chrono::Datelike;
@@ -11,7 +12,9 @@ use std::ffi::OsStr;
 use std::fmt::{Display, Error, Formatter};
 use std::fs;
 use std::io;
-use std::io::{Read, Write};
+#[cfg(not(test))]
+use std::io::Read;
+use std::io::Write;
 use std::path::Path;
 use std::process::ExitCode;
 use std::str::FromStr;
@@ -291,6 +294,7 @@ fn stingy_main() -> Result<()> {
                 today,       // to
                 accounts_names,
             )
+            .map(|_| ())
         }
         Some(Commands::Import {
             aib_csv,
@@ -349,7 +353,8 @@ fn stingy_main() -> Result<()> {
             accounts: AccountOperation::List,
         }) => {
             let result = commands::accounts::list(&db)?;
-            output::table::render_table(&mut io::stdout(), &result.columns, &result.rows)
+            let mut to = output::table::TableOutput::new(io::stdout(), None);
+            to.render_table(&result.columns, &result.rows).map(|_| ())
         }
         Some(Commands::Accounts {
             accounts: AccountOperation::Select { account },
@@ -392,7 +397,8 @@ fn stingy_main() -> Result<()> {
             tags: TagOperation::ListRules { tag },
         }) => {
             let result = commands::tags::list_tag_rules(&db, tag.as_deref())?;
-            output::table::render_table(&mut io::stdout(), &result.columns, &result.rows)
+            let mut to = output::table::TableOutput::new(io::stdout(), None);
+            to.render_table(&result.columns, &result.rows).map(|_| ())
         }
         Some(Commands::Tags {
             tags:
@@ -534,6 +540,7 @@ fn stingy_main() -> Result<()> {
                 to,
                 account_names,
             )
+            .map(|_| ())
         }
         Some(Commands::Undo {}) => commands::undo::command_undo(&db),
         Some(Commands::Info {}) => {

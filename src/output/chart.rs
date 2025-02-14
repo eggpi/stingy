@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use charming;
 use std::collections;
 use std::io::Write;
@@ -6,11 +6,12 @@ use std::process;
 
 use crate::database;
 use crate::output::format::ToOutputFormat;
+use crate::output::{Output, OutputForTesting};
 
 const FONT_SIZE: f64 = 25.0;
 const TITLE_FONT_SIZE: f64 = FONT_SIZE * 1.5;
 
-fn chart_to_sixel<W>(mut writer: W, chart: charming::Chart) -> Result<()>
+fn chart_to_sixel<W>(writer: &mut W, chart: &charming::Chart) -> Result<()>
 where
     W: Write,
 {
@@ -243,20 +244,39 @@ fn by_tag_rows_to_chart(rows: &[database::ByTagRow]) -> Result<charming::Chart> 
         .series(make_pie_chart("Credits", "75%", credits)))
 }
 
-pub fn render_by_month_chart<W>(
-    writer: &mut W,
-    rows: &[database::ByMonthRow],
-    show_balance: bool,
-) -> Result<()>
-where
-    W: Write,
-{
-    chart_to_sixel(writer, by_month_rows_to_chart(rows, show_balance)?)
+pub struct ChartOutput<W> {
+    writer: W,
 }
 
-pub fn render_by_tag_chart<W>(writer: &mut W, rows: &[database::ByTagRow]) -> Result<()>
+impl<W> Output<W> for ChartOutput<W>
 where
     W: Write,
 {
-    chart_to_sixel(writer, by_tag_rows_to_chart(rows)?)
+    fn new(writer: W, _: Option<usize>) -> ChartOutput<W> {
+        ChartOutput { writer: writer }
+    }
+
+    fn render_by_month(
+        &mut self,
+        rows: &[database::ByMonthRow],
+        show_balance: bool,
+    ) -> Result<OutputForTesting> {
+        let chart = by_month_rows_to_chart(rows, show_balance)?;
+        chart_to_sixel(&mut self.writer, &chart)?;
+        Ok(OutputForTesting::Chart(chart.to_string()))
+    }
+
+    fn render_by_tag(&mut self, rows: &[database::ByTagRow]) -> Result<OutputForTesting> {
+        let chart = by_tag_rows_to_chart(rows)?;
+        chart_to_sixel(&mut self.writer, &chart)?;
+        Ok(OutputForTesting::Chart(chart.to_string()))
+    }
+
+    fn render_debits(&mut self, _: &[database::DebitsRow], _: bool) -> Result<OutputForTesting> {
+        unimplemented!();
+    }
+
+    fn render_credits(&mut self, _: &[database::CreditsRow], _: bool) -> Result<OutputForTesting> {
+        unimplemented!();
+    }
 }
