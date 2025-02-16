@@ -72,6 +72,7 @@ View the distribution of transactions by tag, for transactions over a certain am
 View my debits for the month, sorted by amount                                        | `stingy query debits --period May`
 Search my debits by description (e.g. how much did I pay at that restaurant?)         | `stingy query debits --description-contains <description>`
 List all debits with a given tag                                                      | `stingy query debits --tags <tag1>,<tag2>`
+List all debits, except ones with a given tag                                         | `stingy query debits --not-tags <tag1>,<tag2>`
 View all credits for the year (and sum total), for a given account                    | `stingy query credits --period 2022/01-2022/12 --account <account>`
 
 All filtering options generally work across all queries, so try them out!

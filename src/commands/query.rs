@@ -615,6 +615,86 @@ mod debits_tests {
             unimplemented!()
         }
     }
+
+    #[test]
+    fn not_tags() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "daily/coffee",
+            None,
+            Some("coffee"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::Debits {
+                show_transaction_id: false,
+            },
+            &vec![],
+            &vec!["daily/cof".to_string()],
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec!["000000 - 00000000"],
+        )
+        .unwrap();
+        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+            assert_eq!(rows.len(), 7);
+        } else {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn tags_and_not_tags() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "daily/coffee",
+            None,
+            Some("coffee"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::Debits {
+                show_transaction_id: false,
+            },
+            &vec!["daily/cof".to_string()],
+            &vec!["daily/cof".to_string()],
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec!["000000 - 00000000"],
+        )
+        .unwrap();
+        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+            assert_eq!(rows.len(), 0);
+        } else {
+            unimplemented!()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -726,6 +806,47 @@ mod credits_tests {
         .unwrap();
         if let OutputForTesting::Table((_, rows)) = output_for_testing {
             assert_eq!(rows[0][4], "2021/02/25");
+        } else {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn not_tags() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "insurance",
+            None,
+            Some("insurance"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::Credits {
+                show_transaction_id: false,
+            },
+            &vec![],
+            &vec!["insur".to_string()],
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec![],
+        )
+        .unwrap();
+        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+            println!("{:#?}", rows);
+            assert_eq!(rows.len(), 3);
         } else {
             unimplemented!()
         }
@@ -1219,6 +1340,55 @@ mod by_month_tests {
             unimplemented!()
         }
     }
+
+    #[test]
+    fn not_tags() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "daily/coffee",
+            None,
+            Some("cof"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::ByMonth { table: true },
+            &vec![],
+            &vec!["daily".to_string()],
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec!["000000 - 00000000"],
+        )
+        .unwrap();
+        if let OutputForTesting::Table((columns, rows)) = output_for_testing {
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[1][1], "2021/02");
+            /* The coffee transaction is omitted: 72.22 - 3.74 = 68.48. */
+            assert_eq!(rows[1][3], "68.48");
+            /* Make sure we also omit the balance here. */
+            assert_eq!(
+                columns
+                    .iter()
+                    .filter(|c| c.starts_with("Balance"))
+                    .collect::<Vec<_>>()
+                    .len(),
+                0
+            );
+        } else {
+            unimplemented!()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1442,6 +1612,60 @@ mod by_tag_tests {
         if let OutputForTesting::Table((_, rows)) = output_for_testing {
             assert_eq!(rows.len(), 2);
             assert_eq!(rows[1], vec!["pub", "16.00", "11.43", "0.00", "0.00"]);
+        } else {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn not_tags() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "coffee",
+            None,
+            Some("coffee"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "pub",
+            None,
+            Some("pub"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::ByTag {
+                transaction_type: None,
+                table: true,
+            },
+            &vec![],
+            &vec!["coffee".to_string()],
+            None,
+            None,
+            None,
+            Some(NaiveDate::from_ymd_opt(2021, 02, 25).unwrap()),
+            None,
+            vec!["000000 - 00000000"],
+        )
+        .unwrap();
+        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[0], vec!["", "117.25", "87.99", "1000.00", "100.00"]); // untagged
+            assert_eq!(rows[1], vec!["pub", "16.00", "12.01", "0.00", "0.00"]);
         } else {
             unimplemented!()
         }
