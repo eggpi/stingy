@@ -539,8 +539,14 @@ fn stingy_main() -> Result<()> {
                 from,
                 to,
                 account_names,
-            )
-            .map(|_| ())
+            )?;
+            match query {
+                PreparedQuery::ByMonth { table: false }
+                | PreparedQuery::ByTag { table: false, .. } => {
+                    println!("{TIP} Add --table to this command to view details in table format.")
+                }
+                _ => Ok(()),
+            }
         }
         Some(Commands::Undo {}) => commands::undo::command_undo(&db),
         Some(Commands::Info {}) => {
