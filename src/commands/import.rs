@@ -156,6 +156,25 @@ where
                 bail!("{path}:{line} has no 'Amount' field!");
             }
 
+            if let Some(f) = as_kv.get("Fee") {
+                let fee = if f == "" {
+                    0.0
+                } else {
+                    f.parse()
+                        .map_err(|_| anyhow!("{path}:{line} failed to parse 'Fee'"))?
+                };
+                if fee < 0.0 {
+                    bail!("{path}:{line} has negative 'Fee' field!");
+                }
+                if transaction.transaction_type == model::TransactionType::Credit {
+                    transaction.credit_amount -= fee;
+                } else {
+                    transaction.debit_amount += fee;
+                }
+            } else {
+                bail!("{path}:{line} has no 'Fee' field!");
+            }
+
             if let Some(ba) = as_kv.get("Balance") {
                 if ba == "" {
                     // This seems to happen when Revolut moves your account to a different region.
@@ -640,6 +659,11 @@ mod revolut_import_tests {
         "Shady,64.00,0,EUR,PENDING,100.00"
     );
 
+    const CREDIT_WITH_FEE: &str = concat!(
+        "INTEREST,Current,2021-03-01 12:18:24,2021-03-01 8:12:27,",
+        "Shady,3.22,1.07,EUR,COMPLETED,100.00"
+    );
+
     #[test]
     fn import_one_row() {
         let csv = format!("{CSV_HEADER}\n{CARD_PAYMENT}");
@@ -727,5 +751,15 @@ mod revolut_import_tests {
         import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
         assert_eq!(transactions.len(), 0);
+    }
+
+    #[test]
+    fn credit_with_fee() {
+        let csv = format!("{CSV_HEADER}\n{}", CREDIT_WITH_FEE);
+        let db = open_stingy_testing_database();
+        import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
+        let transactions: Vec<model::Transaction> = db.get_all().unwrap();
+        assert_eq!(transactions.len(), 1);
+        assert!((transactions[0].credit_amount - 2.15).abs() < 0.0000001);
     }
 }
