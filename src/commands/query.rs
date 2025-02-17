@@ -1676,7 +1676,7 @@ mod by_tag_tests {
 mod chart_tests {
     use super::*;
     use crate::database::open_stingy_testing_database;
-    use serde_json::json;
+    use serde_json;
     use std::io::Cursor;
 
     #[test]
