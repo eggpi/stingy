@@ -633,7 +633,7 @@ fn query_filters_to_sql(filters: QueryFilters) -> (String, Vec<(String, sqlite::
         for (i, account) in filters.accounts.iter().enumerate() {
             let name = format!(":A{}", i);
             args.insert(name.clone(), account.clone().into());
-            accounts_sql.push(format!("INSTR(LOWER(account_name), LOWER({}))", name));
+            accounts_sql.push(format!("LOWER(account_name) = LOWER({})", name));
             if i < filters.accounts.len() - 1 {
                 accounts_sql.push("OR".to_string());
             }

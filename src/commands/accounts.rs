@@ -32,17 +32,26 @@ pub fn get_account_or_selected(
 ) -> Result<Vec<model::Account>> {
     let accounts: Vec<model::Account> = db.get_all()?;
     let mut selected = vec![];
+    let mut matches = vec![];
     for account in &accounts {
         if account.selected {
             selected.push(account.clone());
         }
-        if Some(account.name.as_str()) == account_name
-            || (account.alias.is_some() && account.alias.as_deref() == account_name)
-        {
-            return Ok(vec![account.clone()]);
+        if let Some(account_or_alias) = account_name {
+            let prefix_match = account.name.starts_with(account_or_alias)
+                || account
+                    .alias
+                    .as_ref()
+                    .filter(|alias| alias.starts_with(account_or_alias))
+                    .is_some();
+            if prefix_match {
+                matches.push(account.clone());
+            }
         }
     }
-    if account_name.is_none() {
+    if !matches.is_empty() {
+        Ok(matches)
+    } else if account_name.is_none() {
         Ok(selected)
     } else {
         Err(anyhow!("account or alias not found."))
@@ -155,11 +164,49 @@ mod accounts_tests {
         let db = open_stingy_testing_database();
         db.insert_test_data();
 
-        alias(&db, "000000 - 00000000", "0").unwrap();
+        alias(&db, "000000 - 00000000", "alias").unwrap();
+        let accounts = get_account_or_selected(&db, Some("alias")).unwrap();
+        let account = accounts.get(0).unwrap();
+        assert_eq!(account.name, "000000 - 00000000");
+        assert_eq!(account.alias, Some("alias".to_string()));
+    }
+
+    #[test]
+    fn prefix_match_account() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
         let accounts = get_account_or_selected(&db, Some("0")).unwrap();
         let account = accounts.get(0).unwrap();
         assert_eq!(account.name, "000000 - 00000000");
-        assert_eq!(account.alias, Some("0".to_string()));
+        assert_eq!(account.alias, None);
+    }
+
+    #[test]
+    fn prefix_match_alias() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        alias(&db, "000000 - 00000000", "long_account_alias").unwrap();
+        let accounts = get_account_or_selected(&db, Some("lo")).unwrap();
+        let account = accounts.get(0).unwrap();
+        assert_eq!(account.name, "000000 - 00000000");
+        assert_eq!(account.alias, Some("long_account_alias".to_string()));
+    }
+
+    #[test]
+    fn resolve_multiple_by_alias_prefix() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        alias(&db, "000000 - 00000000", "bank/spending").unwrap();
+        alias(&db, "111111 - 11111111", "bank/savings").unwrap();
+        let accounts = get_account_or_selected(&db, Some("bank")).unwrap();
+        assert_eq!(accounts.len(), 2);
+        let account = accounts.get(0).unwrap();
+        assert_eq!(account.name, "000000 - 00000000");
+        let account = accounts.get(1).unwrap();
+        assert_eq!(account.name, "111111 - 11111111");
     }
 
     #[test]
