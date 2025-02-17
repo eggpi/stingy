@@ -28,6 +28,10 @@ and then:
 cargo install --locked --git https://github.com/eggpi/stingy.git
 ```
 
+You'll also need [Imagemagick](https://imagemagick.org) and a
+[Sixel-compatible](https://www.arewesixelyet.com/) terminal emulator to view
+graphs.
+
 ## Usage
 
 ### Importing transactions

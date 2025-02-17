@@ -1671,3 +1671,67 @@ mod by_tag_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod chart_tests {
+    use super::*;
+    use crate::database::open_stingy_testing_database;
+    use serde_json::json;
+    use std::io::Cursor;
+
+    #[test]
+    fn by_month_simple() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::ByMonth { table: false },
+            &vec![],
+            &vec![],
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec![],
+        )
+        .unwrap();
+        if let OutputForTesting::Chart(chart_json) = output_for_testing {
+            let chart = serde_json::from_str::<serde_json::Value>(&chart_json).unwrap();
+            assert_eq!(chart.get("xAxis").unwrap().as_array().unwrap().len(), 2);
+            assert_eq!(chart.get("yAxis").unwrap().as_array().unwrap().len(), 2);
+        } else {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn by_month_hide_balance_when_filtering_by_tag() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::ByMonth { table: false },
+            &vec!["coffee".to_string()],
+            &vec![],
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec![],
+        )
+        .unwrap();
+        if let OutputForTesting::Chart(chart_json) = output_for_testing {
+            let chart = serde_json::from_str::<serde_json::Value>(&chart_json).unwrap();
+            assert_eq!(chart.get("xAxis").unwrap().as_array().unwrap().len(), 1);
+            assert_eq!(chart.get("yAxis").unwrap().as_array().unwrap().len(), 1);
+        } else {
+            unimplemented!()
+        }
+    }
+}
