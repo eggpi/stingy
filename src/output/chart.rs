@@ -159,7 +159,7 @@ fn by_month_rows_to_chart(
     let mut chart = default_chart()
         .legend(default_legend())
         .x_axis(category_axis(&months))
-        .y_axis(value_axis(Some("Credits (c) / Debits (d)")));
+        .y_axis(value_axis(Some("Credits (+) / Debits (-)")));
     if show_balance {
         chart = chart
             .grid(charming::component::Grid::new().height("30%").bottom("7%"))
