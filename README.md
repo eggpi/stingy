@@ -4,7 +4,7 @@
 
 Stingy is a simple command-line tool for managing your expenses.
 
-https://github.com/eggpi/stingy/assets/489134/017219fc-b559-4849-9e26-5c4339a85861
+https://github.com/user-attachments/assets/898ab0de-7339-449e-a190-33200092071e
 
 (The demo above uses fake data. Thankfully, I'm not in that much debt.)
 
