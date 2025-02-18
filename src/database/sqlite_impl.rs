@@ -195,7 +195,7 @@ macro_rules! impl_undo_operations {
         ))?;
 
         let revert_update_statement = format!(
-            "'UPDATE {table} SET '|| {}",
+            "'UPDATE {table} SET '|| {} ||' WHERE rowid=' || quote(old.rowid)",
             <$model_type>::FIELD_NAMES_AS_ARRAY
                 .iter()
                 .map(|field_name| format!("'{field_name} = ' || quote(old.{field_name})"))

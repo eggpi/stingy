@@ -18,7 +18,7 @@ pub fn command_undo(db: &Box<dyn StingyDatabase>) -> Result<()> {
 #[cfg(test)]
 mod undo_tests {
     use super::*;
-    use crate::commands::tags;
+    use crate::commands::{accounts, tags};
     use crate::database::open_stingy_testing_database;
     use crate::model;
     use chrono::NaiveDate;
@@ -80,6 +80,87 @@ mod undo_tests {
         command_undo(&db).unwrap();
         let tag_rules = tags::list_tag_rules(&db, None).unwrap();
         assert_eq!(tag_rules.rows.len(), 1);
+    }
+
+    #[test]
+    fn undo_account_select() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        begin_undo_step(&db, &format!("select")).unwrap();
+        assert_eq!(
+            accounts::get_account_or_selected(&db, None).unwrap().len(),
+            0
+        );
+        accounts::select(&db, "000000 - 00000000").unwrap();
+        assert_eq!(
+            accounts::get_account_or_selected(&db, None).unwrap().len(),
+            1
+        );
+        command_undo(&db).unwrap();
+        assert_eq!(
+            accounts::get_account_or_selected(&db, None).unwrap().len(),
+            0
+        );
+    }
+
+    #[test]
+    fn undo_account_unselect() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        assert_eq!(
+            accounts::get_account_or_selected(&db, None).unwrap().len(),
+            0
+        );
+        accounts::select(&db, "000000 - 00000000").unwrap();
+        assert_eq!(
+            accounts::get_account_or_selected(&db, None).unwrap().len(),
+            1
+        );
+
+        begin_undo_step(&db, &format!("unselect")).unwrap();
+        accounts::unselect(&db, Some("000000 - 00000000")).unwrap();
+        assert_eq!(
+            accounts::get_account_or_selected(&db, None).unwrap().len(),
+            0
+        );
+
+        command_undo(&db).unwrap();
+        assert_eq!(
+            accounts::get_account_or_selected(&db, None).unwrap().len(),
+            1
+        );
+    }
+
+    #[test]
+    fn undo_account_unselect_multiple() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        assert_eq!(
+            accounts::get_account_or_selected(&db, None).unwrap().len(),
+            0
+        );
+        accounts::select(&db, "000000 - 00000000").unwrap();
+        accounts::select(&db, "111111 - 11111111").unwrap();
+        assert_eq!(
+            accounts::get_account_or_selected(&db, None).unwrap().len(),
+            2
+        );
+
+        begin_undo_step(&db, &format!("unselect")).unwrap();
+        accounts::unselect(&db, None).unwrap();
+        assert_eq!(
+            accounts::get_account_or_selected(&db, None).unwrap().len(),
+            0
+        );
+
+        command_undo(&db).unwrap();
+        assert_eq!(
+            accounts::get_account_or_selected(&db, None).unwrap().len(),
+            2
+        );
     }
 
     #[test]
