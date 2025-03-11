@@ -29,9 +29,9 @@ impl Importer<'_> {
     }
 }
 
-pub enum ImportFormat {
+pub enum ImportFormat<'a> {
     AIB,
-    Revolut,
+    Revolut { account: &'a str },
 }
 
 pub struct ImportResult {
@@ -56,7 +56,9 @@ where
         .max_by_key(|t: &&model::Transaction| t.posted_date);
     match format {
         ImportFormat::AIB => import_aib_csv(&mut importer, paths_and_readers)?,
-        ImportFormat::Revolut => import_revolut_csv(&mut importer, paths_and_readers)?,
+        ImportFormat::Revolut { account } => {
+            import_revolut_csv(&mut importer, paths_and_readers, &account)?
+        }
     }
 
     let after: Vec<model::Transaction> = db.get_all()?;
@@ -80,7 +82,11 @@ where
     })
 }
 
-fn import_revolut_csv<T>(importer: &mut Importer, paths_and_readers: &mut [(&str, T)]) -> Result<()>
+fn import_revolut_csv<T>(
+    importer: &mut Importer,
+    paths_and_readers: &mut [(&str, T)],
+    account: &str,
+) -> Result<()>
 where
     T: Read,
 {
@@ -113,10 +119,7 @@ where
                 }
             }
 
-            transaction.account_name = as_kv
-                .get("Product")
-                .ok_or(anyhow!("{path}:{line} has no 'Product' field"))?
-                .to_string();
+            transaction.account_name = account.to_string();
 
             if let Some(ptd) = as_kv.get("Completed Date") {
                 let date = ptd
@@ -668,7 +671,12 @@ mod revolut_import_tests {
     fn import_one_row() {
         let csv = format!("{CSV_HEADER}\n{CARD_PAYMENT}");
         let db = open_stingy_testing_database();
-        let r = import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
+        let r = import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut { account: "0" },
+        )
+        .unwrap();
         assert_eq!(r.imported, 1);
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
         assert_eq!(transactions.len(), 1);
@@ -676,7 +684,7 @@ mod revolut_import_tests {
             transactions[0],
             model::Transaction {
                 id: Some(1),
-                account_name: "Current".to_string(),
+                account_name: "0".to_string(),
                 posted_date: NaiveDate::from_ymd_opt(2021, 03, 01).unwrap(),
                 description: "Coffee".to_string(),
                 debit_amount: 2.0,
@@ -692,7 +700,12 @@ mod revolut_import_tests {
     fn import_multiple_rows() {
         let csv = format!("{CSV_HEADER}\n{INCOMING_TRANSFER}\n{OUTGOING_TRANSFER}");
         let db = open_stingy_testing_database();
-        let r = import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
+        let r = import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut { account: "0" },
+        )
+        .unwrap();
         assert_eq!(r.imported, 2);
         let mut transactions: Vec<model::Transaction> = db.get_all().unwrap();
         transactions.sort_by_key(|t| format!("{:?}", t.transaction_type));
@@ -713,7 +726,12 @@ mod revolut_import_tests {
     fn atm_becomes_debit() {
         let csv = format!("{CSV_HEADER}\n{}", ATM_WITHDRAWAL);
         let db = open_stingy_testing_database();
-        import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
+        import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut { account: "0" },
+        )
+        .unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
         assert_eq!(transactions.len(), 1);
         assert_eq!(
@@ -726,7 +744,12 @@ mod revolut_import_tests {
     fn topup_becomes_credit() {
         let csv = format!("{CSV_HEADER}\n{}", TOPUP);
         let db = open_stingy_testing_database();
-        import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
+        import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut { account: "0" },
+        )
+        .unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
         assert_eq!(transactions.len(), 1);
         assert_eq!(
@@ -739,7 +762,12 @@ mod revolut_import_tests {
     fn ignore_reverted() {
         let csv = format!("{CSV_HEADER}\n{}", REVERTED);
         let db = open_stingy_testing_database();
-        import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
+        import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut { account: "0" },
+        )
+        .unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
         assert_eq!(transactions.len(), 0);
     }
@@ -748,7 +776,12 @@ mod revolut_import_tests {
     fn ignore_pending() {
         let csv = format!("{CSV_HEADER}\n{}", PENDING);
         let db = open_stingy_testing_database();
-        import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
+        import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut { account: "0" },
+        )
+        .unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
         assert_eq!(transactions.len(), 0);
     }
@@ -757,7 +790,12 @@ mod revolut_import_tests {
     fn credit_with_fee() {
         let csv = format!("{CSV_HEADER}\n{}", CREDIT_WITH_FEE);
         let db = open_stingy_testing_database();
-        import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::Revolut).unwrap();
+        import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut { account: "0" },
+        )
+        .unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
         assert_eq!(transactions.len(), 1);
         assert!((transactions[0].credit_amount - 2.15).abs() < 0.0000001);

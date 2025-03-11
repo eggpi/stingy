@@ -84,15 +84,9 @@ enum Commands {
     },
 
     /// Import transactions from a bank.
-    #[group(multiple = false, required = true)]
     Import {
-        /// CSV files from AIB (aib.ie).
-        #[arg(long, num_args = 1..)]
-        aib_csv: Vec<String>,
-
-        /// CSV files from Revolut (revolut.com).
-        #[arg(long, num_args = 1..)]
-        revolut_csv: Vec<String>,
+        #[command(subcommand)]
+        import: ImportOperations,
     },
 
     /// Undo the last invocation that wrote to the database.
@@ -214,6 +208,27 @@ pub enum PreparedQuery {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum ImportOperations {
+    /// Import from AIB (aib.ie)
+    AIB {
+        /// The csv file(s) to use.
+        #[arg(long, num_args = 1.., required = true)]
+        csv: Vec<String>,
+    },
+
+    /// Import from Revolut (revolut.com)
+    Revolut {
+        /// The csv file(s) to use.
+        #[arg(long, num_args = 1.., required = true)]
+        csv: Vec<String>,
+
+        /// Import into this account, mandatory for Revolut.
+        #[arg(long)]
+        account: String,
+    },
+}
+
 fn main() -> ExitCode {
     match stingy_main() {
         Err(e) => {
@@ -296,14 +311,13 @@ fn stingy_main() -> Result<()> {
             )
             .map(|_| ())
         }
-        Some(Commands::Import {
-            aib_csv,
-            revolut_csv,
-        }) => {
-            let (format, paths) = if aib_csv.len() > 0 {
-                (commands::import::ImportFormat::AIB, aib_csv)
-            } else {
-                (commands::import::ImportFormat::Revolut, revolut_csv)
+        Some(Commands::Import { import }) => {
+            let (format, paths) = match &import {
+                ImportOperations::AIB { csv } => (commands::import::ImportFormat::AIB, csv),
+                ImportOperations::Revolut { csv, account } => (
+                    commands::import::ImportFormat::Revolut { account: account },
+                    csv,
+                ),
             };
             let mut readers = Vec::new();
             for path in paths {
