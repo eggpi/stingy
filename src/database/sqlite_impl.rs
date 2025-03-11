@@ -59,6 +59,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "002-undo.sql",
         include_str!("./sql/migrations/002-undo.sql"),
     ),
+    (
+        "003-remove-transactions-cascade-transactions-tags.sql",
+        include_str!("./sql/migrations/003-remove-transactions-cascade-transactions-tags.sql"),
+    ),
 ];
 
 fn perform_migrations(conn: &sqlite::Connection, migrations: &[(&str, &str)]) -> Result<bool> {

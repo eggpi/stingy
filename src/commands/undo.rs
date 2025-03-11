@@ -83,6 +83,40 @@ mod undo_tests {
     }
 
     #[test]
+    fn undo_tagged_transaction_import() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        tags::add_tag_rule(
+            &db,
+            "test1",
+            None,
+            Some("coffee"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+        begin_undo_step(&db, &format!("import")).unwrap();
+
+        let mut transaction = model::Transaction::default();
+        transaction.account_name = "000000 - 00000000".to_string();
+        transaction.description = "coffee".to_string();
+        match db.insert_or_get(transaction).unwrap() {
+            crate::database::NewOrExisting::New(_) => {}
+            crate::database::NewOrExisting::Existing(_) => {
+                assert!(false);
+            }
+        }
+
+        let before = db.count_transactions().unwrap();
+        command_undo(&db).unwrap();
+        assert_eq!(before, db.count_transactions().unwrap() + 1);
+    }
+
+    #[test]
     fn undo_account_select() {
         let db = open_stingy_testing_database();
         db.insert_test_data();
