@@ -49,35 +49,58 @@ fn stingy_data_dir() -> Result<PathBuf> {
     Ok(env::temp_dir().join("Stingy"))
 }
 
-const MIGRATIONS: &[(&str, &str)] = &[
-    ("", ""), // Sentinel
-    (
-        "001-initial-schema.sql",
-        include_str!("./sql/migrations/001-initial-schema.sql"),
-    ),
-    (
-        "002-undo.sql",
-        include_str!("./sql/migrations/002-undo.sql"),
-    ),
-    (
-        "003-remove-transactions-cascade-transactions-tags.sql",
-        include_str!("./sql/migrations/003-remove-transactions-cascade-transactions-tags.sql"),
-    ),
+struct Migration<'a> {
+    name: &'a str,
+    sql: &'a str,
+    disable_foreign_keys: bool,
+}
+
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        name: "",
+        sql: "",
+        disable_foreign_keys: false,
+    }, // Sentinel
+    Migration {
+        name: "001-initial-schema.sql",
+        sql: include_str!("./sql/migrations/001-initial-schema.sql"),
+        disable_foreign_keys: false,
+    },
+    Migration {
+        name: "002-undo.sql",
+        sql: include_str!("./sql/migrations/002-undo.sql"),
+        disable_foreign_keys: false,
+    },
+    Migration {
+        name: "003-remove-transactions-cascade-transactions-tags.sql",
+        sql: include_str!("./sql/migrations/003-remove-transactions-cascade-transactions-tags.sql"),
+        disable_foreign_keys: false,
+    },
+    Migration {
+        name: "004-add-id-to-accounts.sql",
+        sql: include_str!("./sql/migrations/004-add-id-to-accounts.sql"),
+        disable_foreign_keys: true,
+    },
 ];
 
-fn perform_migrations(conn: &sqlite::Connection, migrations: &[(&str, &str)]) -> Result<bool> {
+fn perform_migrations(conn: &sqlite::Connection, migrations: &[Migration]) -> Result<bool> {
     let rows = sqlv!(conn, "PRAGMA user_version")?;
     // This always returns a row, user_version is 0 on an empty database.
     let prev_version: i64 = (&rows[0][0]).try_into()?;
     let mut version: usize = prev_version as usize + 1;
     while version < migrations.len() {
-        let migration_name = migrations[version].0;
+        let migration_name = migrations[version].name;
+        if migrations[version].disable_foreign_keys {
+            // We have to do this before starting the transaction, see
+            // https://www.sqlite.org/foreignkeys.html.
+            conn.execute("PRAGMA foreign_keys = OFF;")?;
+        }
         // We could switch to SAVEPOINT if we need to use nested transactions
         // inside the migration scripts.
         // See https://www.sqlite.org/lang_savepoint.html.
         conn.execute("BEGIN TRANSACTION")
             .map_err(|e| anyhow!("couldn't start transaction: {e}"))?;
-        conn.execute(migrations[version].1).or_else(|e| {
+        conn.execute(migrations[version].sql).or_else(|e| {
             conn.execute("ROLLBACK")
                 .map_err(|e| anyhow!("the migration failed, and we failed to rollback: {e}"))?;
             bail!("migration '{migration_name}' failed ({e})")
@@ -92,6 +115,7 @@ fn perform_migrations(conn: &sqlite::Connection, migrations: &[(&str, &str)]) ->
             })?;
         conn.execute("END TRANSACTION")
             .map_err(|e| anyhow!("couldn't commit transaction: {e}"))?;
+        conn.execute("PRAGMA foreign_keys = ON;")?;
         version += 1;
     }
     Ok((prev_version as usize) < migrations.len() - 1)
@@ -521,6 +545,7 @@ impl TryFrom<Vec<sqlite::Value>> for model::Account {
     fn try_from(mut values: Vec<sqlite::Value>) -> Result<Self> {
         assert_eq!(values.len(), Self::FIELD_NAMES_AS_ARRAY.len());
         Ok(Self {
+            id: (&values.remove(0)).try_into()?,
             name: values.remove(0).try_into()?,
             alias: Option::<&str>::try_from(&values.remove(0))?.map(|s| s.to_string()),
             selected: (&values.remove(0)).try_into::<i64>()? > 0,
@@ -534,10 +559,12 @@ impl From<&model::Account> for Vec<sqlite::Value> {
         // fields change.
         match model {
             model::Account {
+                id,
                 name,
                 alias,
                 selected,
             } => vec![
+                (*id).map(|v| v.into()).unwrap_or(sqlite::Value::Null),
                 name.as_str().into(),
                 alias
                     .as_ref()
@@ -862,10 +889,26 @@ mod sqlite_database_tests {
     fn migrate_from_empty_database() {
         let conn = sqlite::open(":memory:").unwrap();
         let migrations = vec![
-            ("0", ""),
-            ("1", "CREATE TABLE test(count INTEGER)"),
-            ("2", "INSERT INTO test VALUES(1)"),
-            ("3", "UPDATE test SET count = count + 1"),
+            Migration {
+                name: "0",
+                sql: "",
+                disable_foreign_keys: false,
+            },
+            Migration {
+                name: "1",
+                sql: "CREATE TABLE test(count INTEGER)",
+                disable_foreign_keys: false,
+            },
+            Migration {
+                name: "2",
+                sql: "INSERT INTO test VALUES(1)",
+                disable_foreign_keys: false,
+            },
+            Migration {
+                name: "3",
+                sql: "UPDATE test SET count = count + 1",
+                disable_foreign_keys: false,
+            },
         ];
         perform_migrations(&conn, &migrations).unwrap();
         let rows = sqlv!(&conn, "SELECT count FROM test").unwrap();
@@ -876,13 +919,40 @@ mod sqlite_database_tests {
     #[test]
     fn migrate_from_existing_schema() {
         let conn = sqlite::open(":memory:").unwrap();
-        let migrations = vec![("0", ""), ("1", "CREATE TABLE test(count INTEGER)")];
+        let migrations = vec![
+            Migration {
+                name: "0",
+                sql: "",
+                disable_foreign_keys: false,
+            },
+            Migration {
+                name: "1",
+                sql: "CREATE TABLE test(count INTEGER)",
+                disable_foreign_keys: false,
+            },
+        ];
         perform_migrations(&conn, &migrations).unwrap();
         let migrations = vec![
-            ("0", ""),
-            ("1", "CREATE TABLE test(count INTEGER)"),
-            ("2", "INSERT INTO test VALUES(1)"),
-            ("3", "UPDATE test SET count = count + 1"),
+            Migration {
+                name: "0",
+                sql: "",
+                disable_foreign_keys: false,
+            },
+            Migration {
+                name: "1",
+                sql: "CREATE TABLE test(count INTEGER)",
+                disable_foreign_keys: false,
+            },
+            Migration {
+                name: "2",
+                sql: "INSERT INTO test VALUES(1)",
+                disable_foreign_keys: false,
+            },
+            Migration {
+                name: "3",
+                sql: "UPDATE test SET count = count + 1",
+                disable_foreign_keys: false,
+            },
         ];
         perform_migrations(&conn, &migrations).unwrap();
         let rows = sqlv!(&conn, "SELECT count FROM test").unwrap();
@@ -894,14 +964,26 @@ mod sqlite_database_tests {
     fn rollback_failed_migration() {
         let conn = sqlite::open(":memory:").unwrap();
         let migrations = vec![
-            ("0", ""),
-            ("1", "CREATE TABLE test(count INTEGER, UNIQUE(count))"),
-            ("2", "INSERT INTO test VALUES(1)"),
-            (
-                "3",
-                "UPDATE test SET count = count + 1; INSERT INTO test VALUES(2)",
-            ),
-            ("4", "UPDATE test SET count = count + 1"),
+            Migration {
+                name: "0",
+                sql: "",
+                disable_foreign_keys: false,
+            },
+            Migration {
+                name: "1",
+                sql: "CREATE TABLE test(count INTEGER, UNIQUE(count))",
+                disable_foreign_keys: false,
+            },
+            Migration {
+                name: "2",
+                sql: "INSERT INTO test VALUES(1)",
+                disable_foreign_keys: false,
+            },
+            Migration {
+                name: "3",
+                sql: "UPDATE test SET count = count + 1; INSERT INTO test VALUES(2)",
+                disable_foreign_keys: false,
+            },
         ];
         assert!(perform_migrations(&conn, &migrations).is_err());
         let rows = sqlv!(&conn, "SELECT count FROM test").unwrap();
@@ -935,5 +1017,50 @@ mod sqlite_database_tests {
         let mut columns = model::Transaction::FIELD_NAMES_AS_ARRAY[1..].to_vec();
         columns.sort();
         assert_eq!(unique_columns, columns);
+    }
+}
+
+#[cfg(test)]
+mod account_model_operations_tests {
+    use super::*;
+
+    #[test]
+    fn insert_or_get() {
+        let db = open_stingy_testing_database();
+        let mut account_id = 0;
+        let account_names = ["account 1", "account 2"];
+
+        for account_name in account_names {
+            account_id += 1;
+            let account = model::Account {
+                id: None,
+                name: account_name.to_string(),
+                alias: None,
+                selected: false,
+            };
+            if let NewOrExisting::New(inserted) = db.insert_or_get(account).unwrap() {
+                assert_eq!(Some(account_id), inserted.id);
+                assert_eq!(account_name, inserted.name);
+                assert_eq!(None, inserted.alias);
+                assert_eq!(false, inserted.selected);
+            } else {
+                assert!(false);
+            }
+
+            let account = model::Account {
+                id: None,
+                name: account_name.to_string(),
+                alias: None,
+                selected: false,
+            };
+            if let NewOrExisting::Existing(retrieved) = db.insert_or_get(account).unwrap() {
+                assert_eq!(Some(account_id), retrieved.id);
+                assert_eq!(account_name, retrieved.name);
+                assert_eq!(None, retrieved.alias);
+                assert_eq!(false, retrieved.selected);
+            } else {
+                assert!(false);
+            }
+        }
     }
 }

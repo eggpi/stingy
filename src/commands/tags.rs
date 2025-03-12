@@ -490,7 +490,7 @@ mod tags_tests {
         assert_eq!(db.count_matching_transactions("1").unwrap(), 1);
         assert_eq!(db.count_matching_transactions("2").unwrap(), 1);
 
-        assert_eq!(delete_tag_rule(&db, &1.to_string()).unwrap(), 1);
+        assert_eq!(delete_tag_rule(&db, "1").unwrap(), 1);
 
         // Only rule 2 still matches.
         assert_eq!(db.count_matching_transactions("1").unwrap(), 0);

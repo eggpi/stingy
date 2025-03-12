@@ -215,6 +215,7 @@ mod undo_tests {
         for step in 0..MAX_UNDO_STEPS + 1 {
             begin_undo_step(&db, &format!("undo_truncate_step_{step}")).unwrap();
             let account = model::Account {
+                id: None,
                 name: format!("account_{step}"),
                 alias: None,
                 selected: false,

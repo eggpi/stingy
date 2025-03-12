@@ -13,6 +13,7 @@ pub enum TransactionType {
 #[derive(Debug, Clone, FieldNamesAsArray)]
 #[field_names_as_array(visibility = "pub")]
 pub struct Account {
+    pub id: Option<i64>,
     pub name: String,
     pub alias: Option<String>,
     pub selected: bool,

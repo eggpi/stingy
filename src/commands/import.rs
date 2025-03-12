@@ -19,6 +19,7 @@ impl Importer<'_> {
 
     fn insert(&mut self, transaction: model::Transaction) -> Result<()> {
         let account = model::Account {
+            id: None,
             name: transaction.account_name.to_string(),
             alias: None,
             selected: false,
