@@ -31,7 +31,7 @@ impl Importer<'_> {
 
 pub enum ImportFormat<'a> {
     AIB,
-    Revolut { account: &'a str },
+    Revolut { account: &'a str, product: &'a str },
 }
 
 pub struct ImportResult {
@@ -56,8 +56,8 @@ where
         .max_by_key(|t: &&model::Transaction| t.posted_date);
     match format {
         ImportFormat::AIB => import_aib_csv(&mut importer, paths_and_readers)?,
-        ImportFormat::Revolut { account } => {
-            import_revolut_csv(&mut importer, paths_and_readers, &account)?
+        ImportFormat::Revolut { account, product } => {
+            import_revolut_csv(&mut importer, paths_and_readers, &account, &product)?
         }
     }
 
@@ -86,6 +86,7 @@ fn import_revolut_csv<T>(
     importer: &mut Importer,
     paths_and_readers: &mut [(&str, T)],
     account: &str,
+    product: &str,
 ) -> Result<()>
 where
     T: Read,
@@ -117,6 +118,14 @@ where
                     line += 1;
                     continue;
                 }
+            }
+
+            let pr = as_kv
+                .get("Product")
+                .ok_or(anyhow!("{path}:{line} has no 'Product' field"))?;
+            if pr != product {
+                line += 1;
+                continue;
             }
 
             transaction.account_name = account.to_string();
@@ -674,7 +683,10 @@ mod revolut_import_tests {
         let r = import(
             &db,
             &mut [("csv", csv.as_bytes())],
-            ImportFormat::Revolut { account: "0" },
+            ImportFormat::Revolut {
+                account: "0",
+                product: "Current",
+            },
         )
         .unwrap();
         assert_eq!(r.imported, 1);
@@ -703,7 +715,10 @@ mod revolut_import_tests {
         let r = import(
             &db,
             &mut [("csv", csv.as_bytes())],
-            ImportFormat::Revolut { account: "0" },
+            ImportFormat::Revolut {
+                account: "0",
+                product: "Current",
+            },
         )
         .unwrap();
         assert_eq!(r.imported, 2);
@@ -729,7 +744,10 @@ mod revolut_import_tests {
         import(
             &db,
             &mut [("csv", csv.as_bytes())],
-            ImportFormat::Revolut { account: "0" },
+            ImportFormat::Revolut {
+                account: "0",
+                product: "Current",
+            },
         )
         .unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
@@ -747,7 +765,10 @@ mod revolut_import_tests {
         import(
             &db,
             &mut [("csv", csv.as_bytes())],
-            ImportFormat::Revolut { account: "0" },
+            ImportFormat::Revolut {
+                account: "0",
+                product: "Current",
+            },
         )
         .unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
@@ -765,7 +786,10 @@ mod revolut_import_tests {
         import(
             &db,
             &mut [("csv", csv.as_bytes())],
-            ImportFormat::Revolut { account: "0" },
+            ImportFormat::Revolut {
+                account: "0",
+                product: "Current",
+            },
         )
         .unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
@@ -779,7 +803,10 @@ mod revolut_import_tests {
         import(
             &db,
             &mut [("csv", csv.as_bytes())],
-            ImportFormat::Revolut { account: "0" },
+            ImportFormat::Revolut {
+                account: "0",
+                product: "Current",
+            },
         )
         .unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
@@ -793,11 +820,32 @@ mod revolut_import_tests {
         import(
             &db,
             &mut [("csv", csv.as_bytes())],
-            ImportFormat::Revolut { account: "0" },
+            ImportFormat::Revolut {
+                account: "0",
+                product: "Current",
+            },
         )
         .unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
         assert_eq!(transactions.len(), 1);
         assert!((transactions[0].credit_amount - 2.15).abs() < 0.0000001);
+    }
+
+    #[test]
+    fn ignore_product_mismatch() {
+        // Same as credit_with_fee, but we pass a different product so the data should be ignored.
+        let csv = format!("{CSV_HEADER}\n{}", CREDIT_WITH_FEE);
+        let db = open_stingy_testing_database();
+        import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut {
+                account: "0",
+                product: "Deposit",
+            },
+        )
+        .unwrap();
+        let transactions: Vec<model::Transaction> = db.get_all().unwrap();
+        assert_eq!(transactions.len(), 0);
     }
 }

@@ -226,6 +226,10 @@ enum ImportOperations {
         /// Import into this account, mandatory for Revolut.
         #[arg(long)]
         account: String,
+
+        /// Import this product, mandatory for Revolut.
+        #[arg(long)]
+        product: String,
     },
 }
 
@@ -314,8 +318,15 @@ fn stingy_main() -> Result<()> {
         Some(Commands::Import { import }) => {
             let (format, paths) = match &import {
                 ImportOperations::AIB { csv } => (commands::import::ImportFormat::AIB, csv),
-                ImportOperations::Revolut { csv, account } => (
-                    commands::import::ImportFormat::Revolut { account: account },
+                ImportOperations::Revolut {
+                    csv,
+                    account,
+                    product,
+                } => (
+                    commands::import::ImportFormat::Revolut {
+                        account: account,
+                        product: product,
+                    },
                     csv,
                 ),
             };
