@@ -183,6 +183,27 @@ impl StingyDatabase for SQLiteStingyDatabase {
         Ok(count as usize)
     }
 
+    fn lookup_tag_rule(&self, model: &model::TagRule) -> Result<Option<i64>> {
+        // Every field in a tag rule matters.
+        let placeholders: Vec<_> = model::TagRule::FIELD_NAMES_AS_ARRAY
+            .iter()
+            .map(|_| "?")
+            .collect();
+        let sql = format!(
+            "SELECT {} FROM tag_rules WHERE ({}) IS ({})",
+            model::TagRule::FIELD_NAMES_AS_ARRAY.join(", "),
+            model::TagRule::FIELD_NAMES_AS_ARRAY[1..].join(", "),
+            placeholders[1..].join(", ")
+        );
+        let values: Vec<sqlite::Value> = model.into();
+        let rows = self::sql(&self.conn, &sql, &values[1..])?;
+        if rows.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some((&rows[0][0]).try_into()?))
+        }
+    }
+
     fn count_matching_transactions(&self, tag_rule_id: &str) -> Result<usize> {
         let rows = sqlv!(
             &self.conn,
@@ -377,7 +398,7 @@ macro_rules! impl_model_operations {
                 self::sql(&self.conn, &sql, values.as_slice()).map(|_| ())
             }
 
-            fn insert_or_get(&self, model: $model_type) -> Result<NewOrExisting<$model_type>> {
+            fn insert(&self, model: $model_type) -> Result<NewOrExisting<$model_type>> {
                 let values: Vec<sqlite::Value> = (&model).into();
                 let table = stringify!($table);
                 let placeholders: Vec<&str> = <$model_type>::FIELD_NAMES_AS_ARRAY
@@ -396,19 +417,7 @@ macro_rules! impl_model_operations {
                     Err(err) if !err.to_string().starts_with("UNIQUE constraint failed") => {
                         Err(err)
                     }
-                    Err(_) => {
-                        let sql = format!(
-                            "SELECT {} FROM {table} WHERE ({}) IS ({})",
-                            <$model_type>::FIELD_NAMES_AS_ARRAY.join(", "),
-                            <$model_type>::FIELD_NAMES_AS_ARRAY[1..].join(", "),
-                            placeholders[1..].join(", ")
-                        );
-                        let mut rows = self::sql(&self.conn, &sql, &values[1..])?;
-                        if rows.len() == 0 {
-                            bail!("values are not unique, but can't find the duplicate.");
-                        }
-                        Ok(NewOrExisting::Existing(rows.remove(0).try_into()?))
-                    }
+                    Err(_) => Ok(NewOrExisting::Existing),
                 }
             }
 
@@ -1025,7 +1034,7 @@ mod account_model_operations_tests {
     use super::*;
 
     #[test]
-    fn insert_or_get() {
+    fn insert() {
         let db = open_stingy_testing_database();
         let mut account_id = 0;
         let account_names = ["account 1", "account 2"];
@@ -1038,26 +1047,11 @@ mod account_model_operations_tests {
                 alias: None,
                 selected: false,
             };
-            if let NewOrExisting::New(inserted) = db.insert_or_get(account).unwrap() {
+            if let NewOrExisting::New(inserted) = db.insert(account).unwrap() {
                 assert_eq!(Some(account_id), inserted.id);
                 assert_eq!(account_name, inserted.name);
                 assert_eq!(None, inserted.alias);
                 assert_eq!(false, inserted.selected);
-            } else {
-                assert!(false);
-            }
-
-            let account = model::Account {
-                id: None,
-                name: account_name.to_string(),
-                alias: None,
-                selected: false,
-            };
-            if let NewOrExisting::Existing(retrieved) = db.insert_or_get(account).unwrap() {
-                assert_eq!(Some(account_id), retrieved.id);
-                assert_eq!(account_name, retrieved.name);
-                assert_eq!(None, retrieved.alias);
-                assert_eq!(false, retrieved.selected);
             } else {
                 assert!(false);
             }

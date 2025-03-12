@@ -104,9 +104,9 @@ mod undo_tests {
         let mut transaction = model::Transaction::default();
         transaction.account_name = "000000 - 00000000".to_string();
         transaction.description = "coffee".to_string();
-        match db.insert_or_get(transaction).unwrap() {
+        match db.insert(transaction).unwrap() {
             crate::database::NewOrExisting::New(_) => {}
-            crate::database::NewOrExisting::Existing(_) => {
+            crate::database::NewOrExisting::Existing => {
                 assert!(false);
             }
         }
@@ -220,7 +220,7 @@ mod undo_tests {
                 alias: None,
                 selected: false,
             };
-            db.insert_or_get(account).unwrap();
+            db.insert(account).unwrap();
         }
 
         for _ in 0..MAX_UNDO_STEPS {

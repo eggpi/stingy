@@ -23,16 +23,7 @@ pub fn open_stingy_testing_database() -> Box<dyn StingyDatabase> {
 
 pub enum NewOrExisting<ModelType> {
     New(ModelType),
-    Existing(ModelType),
-}
-
-impl<ModelType> NewOrExisting<ModelType> {
-    pub fn unwrap(self) -> ModelType {
-        match self {
-            NewOrExisting::New(m) => m,
-            NewOrExisting::Existing(m) => m,
-        }
-    }
+    Existing,
 }
 
 pub trait ModelOperations<ModelType> {
@@ -42,7 +33,7 @@ pub trait ModelOperations<ModelType> {
     fn update(&self, _: &ModelType) -> Result<()> {
         unimplemented!();
     }
-    fn insert_or_get(&self, _: ModelType) -> Result<NewOrExisting<ModelType>> {
+    fn insert(&self, _: ModelType) -> Result<NewOrExisting<ModelType>> {
         unimplemented!();
     }
     fn delete(&self, _: ModelType) -> Result<usize> {
@@ -144,6 +135,7 @@ pub trait StingyDatabase:
 {
     fn get_uri(&self) -> String;
     fn count_transactions(&self) -> Result<usize>;
+    fn lookup_tag_rule(&self, model: &model::TagRule) -> Result<Option<i64>>;
     fn count_matching_transactions(&self, tag_rule_id: &str) -> Result<usize>;
     #[cfg(test)]
     fn insert_test_data(&self);

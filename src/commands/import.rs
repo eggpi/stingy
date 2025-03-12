@@ -24,9 +24,10 @@ impl Importer<'_> {
             alias: None,
             selected: false,
         };
-        let account = self.db.insert_or_get(account)?.unwrap();
-        self.accounts.insert(account.name, ());
-        self.db.insert_or_get(transaction).map(|_| ())
+        self.db.insert(account)?;
+        self.accounts
+            .insert(transaction.account_name.to_string(), ());
+        self.db.insert(transaction).map(|_| ())
     }
 }
 

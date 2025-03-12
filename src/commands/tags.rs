@@ -1,5 +1,5 @@
 use crate::database::{model, NewOrExisting, StingyDatabase};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use chrono::NaiveDate;
 
 #[derive(Debug)]
@@ -125,20 +125,24 @@ pub fn add_tag_rule(
         to_date: to,
     };
 
-    let tag_rule_id = match db.insert_or_get(model)? {
-        NewOrExisting::Existing(model) => {
-            return Ok(AddTagRuleResult::NotUnique {
-                tag_rule_id: model.id.unwrap(),
-            });
+    match db.lookup_tag_rule(&model)? {
+        Some(tag_rule_id) => Ok(AddTagRuleResult::NotUnique {
+            tag_rule_id: tag_rule_id,
+        }),
+        None => {
+            if let NewOrExisting::New(model) = db.insert(model)? {
+                let tag_rule_id = model.id.unwrap();
+                let tagged_transactions =
+                    db.count_matching_transactions(&format!("{tag_rule_id}"))?;
+                Ok(AddTagRuleResult::Added {
+                    tag_rule_id,
+                    tagged_transactions,
+                })
+            } else {
+                bail!("Tag can't be looked up, but also can't be inserted?");
+            }
         }
-        NewOrExisting::New(model) => model.id.unwrap(),
-    };
-
-    let tagged_transactions = db.count_matching_transactions(&format!("{tag_rule_id}"))?;
-    Ok(AddTagRuleResult::Added {
-        tag_rule_id,
-        tagged_transactions,
-    })
+    }
 }
 
 pub fn delete_tag_rule(db: &Box<dyn StingyDatabase>, id: &str) -> Result<usize> {
