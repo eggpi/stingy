@@ -696,10 +696,14 @@ fn query_filters_to_sql(filters: QueryFilters) -> (String, Vec<(String, sqlite::
             // created above.
             let maybe_not = if exclude { "NOT" } else { "" };
             sql.push(format!(
+                // FIXME Ideally, we'd return the transaction's tags in a stable sort order,
+                // but we can't do that here in the IN subquery because it only returns
+                // transaction ids.
                 "transactions.id {maybe_not} IN (
-                            SELECT DISTINCT transaction_id
-                            FROM transactions_tags
-                            WHERE ({}))",
+                        SELECT DISTINCT transactions_tags.transaction_id
+                        FROM transactions_tags
+                        JOIN tag_rules ON transactions_tags.tag_rule_id = tag_rules.id
+                        WHERE ({}))",
                 tag_parameters
                     .iter()
                     .map(|tp| format!("SUBSTR(tag, 1, LENGTH({tp})) = {tp}"))

@@ -695,6 +695,62 @@ mod debits_tests {
             unimplemented!()
         }
     }
+
+    #[test]
+    fn fetch_all_tags_when_filtering_by_tags() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "drinks",
+            None,
+            Some("pub"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "fun",
+            None,
+            Some("pub"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::Debits {
+                show_transaction_id: false,
+            },
+            &vec![],
+            &vec![],
+            Some("pub"),
+            None,
+            None,
+            None,
+            None,
+            vec!["000000 - 00000000"],
+        )
+        .unwrap();
+        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+            assert_eq!(rows.len(), 1);
+            let mut tags: Vec<&str> = rows[0][1].split("\n").collect();
+            tags.sort();
+            assert_eq!(tags, vec!["drinks", "fun"]);
+        } else {
+            unimplemented!()
+        }
+    }
 }
 
 #[cfg(test)]
