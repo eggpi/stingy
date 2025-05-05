@@ -501,5 +501,94 @@ mod tags_tests {
         assert_eq!(db.count_matching_transactions("2").unwrap(), 1);
     }
 
+    #[test]
+    fn transaction_id_tag_overrides_other_tags() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        // Tag transaction 7 using a rule (that doesn't refer to its ID).
+        assert_eq!(
+            add_tag_rule(&db, "pub", None, Some("PUB"), None, None, None, None, None).unwrap(),
+            AddTagRuleResult::Added {
+                tag_rule_id: 1,
+                tagged_transactions: 1
+            }
+        );
+        assert_eq!(db.count_matching_transactions("1").unwrap(), 1);
+
+        // Now tag it by ID, the previous rule disappears.
+        assert_eq!(
+            add_tag_rule(&db, "not pub", Some(7), None, None, None, None, None, None).unwrap(),
+            AddTagRuleResult::Added {
+                tag_rule_id: 2,
+                tagged_transactions: 1
+            }
+        );
+        assert_eq!(db.count_matching_transactions("1").unwrap(), 0);
+        assert_eq!(db.count_matching_transactions("2").unwrap(), 1);
+
+        // Add another tag using the transaction ID, both should stay.
+        assert_eq!(
+            add_tag_rule(&db, "not cafe", Some(7), None, None, None, None, None, None).unwrap(),
+            AddTagRuleResult::Added {
+                tag_rule_id: 3,
+                tagged_transactions: 1
+            }
+        );
+        assert_eq!(db.count_matching_transactions("1").unwrap(), 0);
+        assert_eq!(db.count_matching_transactions("2").unwrap(), 1);
+        assert_eq!(db.count_matching_transactions("3").unwrap(), 1);
+
+        // Remove one of the rules we added, the other should stay.
+        delete_tag_rule(&db, "2").unwrap();
+        assert_eq!(db.count_matching_transactions("1").unwrap(), 0);
+        assert_eq!(db.count_matching_transactions("2").unwrap(), 0);
+        assert_eq!(db.count_matching_transactions("3").unwrap(), 1);
+
+        // Remove the other rule, now the original rule should return.
+        delete_tag_rule(&db, "3").unwrap();
+        assert_eq!(db.count_matching_transactions("1").unwrap(), 1);
+        assert_eq!(db.count_matching_transactions("2").unwrap(), 0);
+        assert_eq!(db.count_matching_transactions("3").unwrap(), 0);
+    }
+
+    #[test]
+    fn transaction_id_tag_not_unique() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        assert_eq!(
+            add_tag_rule(
+                &db,
+                "not pub",
+                None,
+                Some("PUB"),
+                None,
+                None,
+                None,
+                None,
+                None
+            )
+            .unwrap(),
+            AddTagRuleResult::Added {
+                tag_rule_id: 1,
+                tagged_transactions: 1
+            }
+        );
+        assert_eq!(db.count_matching_transactions("1").unwrap(), 1);
+
+        // A rule with transaction ID overrides a rule without, even if they set
+        // the same tag.
+        assert_eq!(
+            add_tag_rule(&db, "not pub", Some(7), None, None, None, None, None, None).unwrap(),
+            AddTagRuleResult::Added {
+                tag_rule_id: 2,
+                tagged_transactions: 1
+            }
+        );
+        assert_eq!(db.count_matching_transactions("1").unwrap(), 0);
+        assert_eq!(db.count_matching_transactions("2").unwrap(), 1);
+    }
+
     // TODO Verify human_readable behavior
 }

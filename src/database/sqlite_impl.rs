@@ -81,6 +81,11 @@ const MIGRATIONS: &[Migration] = &[
         sql: include_str!("./sql/migrations/004-add-id-to-accounts.sql"),
         disable_foreign_keys: true,
     },
+    Migration {
+        name: "005-transaction-id-tag-rules-have-precedence.sql",
+        sql: include_str!("./sql/migrations/005-transaction-id-tag-rules-have-precedence.sql"),
+        disable_foreign_keys: false,
+    },
 ];
 
 fn perform_migrations(conn: &sqlite::Connection, migrations: &[Migration]) -> Result<bool> {

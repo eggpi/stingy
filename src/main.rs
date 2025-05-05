@@ -499,6 +499,11 @@ fn stingy_main() -> Result<()> {
                 (_, _, _, _, _, _) => {
                     unreachable!("This shouldn't happen.");
                 }
+            }?;
+            if transaction_id.is_some() {
+                println!("{TIP} Tag rules using transaction IDs override all other tag rules.")
+            } else {
+                Ok(())
             }
         }
         Some(Commands::Tags {
