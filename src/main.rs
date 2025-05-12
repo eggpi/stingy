@@ -490,9 +490,8 @@ fn stingy_main() -> Result<()> {
                             println!("{OK} Added tag rule {tag_rule_id}, tagging {tagged_transactions} transaction(s) with tag '{tag}'.")
                         }
                         commands::tags::AddTagRuleResult::NotUnique { tag_rule_id } => {
-                            println!(
-                                "Tag rule {tag_rule_id} already matches these parameters, ignoring.\n\n{TIP} Use {binary_name} tags list to view tag rules."
-                            )
+                            println!("Tag rule {tag_rule_id} already matches these parameters, ignoring.")?;
+                            println!("{TIP} Use {binary_name} tags list to view tag rules.")
                         }
                     }
                 }
