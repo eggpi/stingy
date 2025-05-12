@@ -84,6 +84,34 @@ where
     })
 }
 
+/* Revolut statements have a broken text encoding: Unicode, encoded as UTF-8, then _incorrectly_
+ * decoded as Latin-1, then encoded as UTF-8.
+ *
+ * To fix it, we need to reverse the process: read the file and decode it as UTF-8 (Rust does
+ * this for us), then encode the broken Unicode as Latin-1, then decode it as UTF-8.
+ *
+ * To encode to Latin-1 (or, reverse the incorrect decoding) we just convert each code point as
+ * its unsigned byte value. This should work as long as the code points are actually representable
+ * in the u8 range.
+ *
+ * This has the same effect of encoding_rs's encode_latin1_lossy function [1], but we implement it
+ * ourselves to avoid taking on another dependency (and live dangerously exposed to bugs).
+ *
+ * 1- https://docs.rs/encoding_rs/latest/encoding_rs/mem/fn.encode_latin1_lossy.html
+ */
+fn fix_revolut_encoding(s: &str) -> String {
+    let code_points = s.chars();
+    let mut code_points_as_bytes = vec![];
+    for code_point in code_points {
+        let well_formed = '\u{0000}' < code_point && code_point <= '\u{00FF}';
+        if !well_formed {
+            return s.to_string();
+        }
+        code_points_as_bytes.push(code_point as u8);
+    }
+    String::from_utf8(code_points_as_bytes).unwrap_or(s.to_string())
+}
+
 fn import_revolut_csv<T>(
     importer: &mut Importer,
     paths_and_readers: &mut [(&str, T)],
@@ -147,10 +175,8 @@ where
                 bail!("{path}:{line} has no 'Completed Date' field!");
             }
 
-            transaction.description = as_kv
-                .get("Description")
-                .unwrap_or(&"".to_string())
-                .to_string();
+            transaction.description =
+                fix_revolut_encoding(&as_kv.get("Description").unwrap_or(&"".to_string()));
 
             if let Some(a) = as_kv.get("Amount") {
                 let amount = if a == "" {
@@ -849,5 +875,32 @@ mod revolut_import_tests {
         .unwrap();
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
         assert_eq!(transactions.len(), 0);
+    }
+
+    #[test]
+    fn fix_description_encoding() {
+        let csv = format!(
+            "{CSV_HEADER}\n{}\n{}\n{}\n{}",
+            CARD_PAYMENT.replace("Coffee", "LUCKYâS"),
+            CARD_PAYMENT.replace("Coffee", "CafÃ©"),
+            CARD_PAYMENT.replace("Coffee", "CaffÃ¨"),
+            CARD_PAYMENT.replace("Coffee", "FranÃ§ois")
+        );
+        let db = open_stingy_testing_database();
+        let r = import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut {
+                account: "0",
+                product: "Current",
+            },
+        )
+        .unwrap();
+        assert_eq!(r.imported, 4);
+        let transactions: Vec<model::Transaction> = db.get_all().unwrap();
+        assert_eq!(transactions[0].description, "LUCKY’S");
+        assert_eq!(transactions[1].description, "Café");
+        assert_eq!(transactions[2].description, "Caffè");
+        assert_eq!(transactions[3].description, "François");
     }
 }
