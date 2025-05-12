@@ -70,6 +70,10 @@ enum Commands {
         #[arg(short, long, use_value_delimiter = true, global = true)]
         not_tags: Vec<String>,
 
+        /// Only include untagged transactions (conflicts with --tags, --not-tags).
+        #[arg(long, global = true)]
+        untagged: bool,
+
         /// Only consider transactions whose description (partially) matches this value.
         #[arg(short, long, global = true)]
         description_contains: Option<String>,
@@ -269,7 +273,7 @@ fn stingy_main() -> Result<()> {
         .map(String::from)
         .unwrap_or(String::from("stingy"));
 
-    let cli = Stingy::parse();
+    let mut cli = Stingy::parse();
     let mut cmd = Stingy::command();
     let can_run_on_empty_database = match &cli.command {
         Some(Commands::Import { .. }) | Some(Commands::Reset {}) | Some(Commands::Info {}) => true,
@@ -284,7 +288,7 @@ fn stingy_main() -> Result<()> {
             commands::undo::begin_undo_step(&db, &invocation.join(" "))?;
         }
     }
-    match &cli.command {
+    match &mut cli.command {
         _ if !has_transactions && !can_run_on_empty_database => {
             println!(
                 "{TIP} Empty database detected. Run '{} help import' to learn how to populate it.",
@@ -437,7 +441,7 @@ fn stingy_main() -> Result<()> {
                 },
         }) => {
             let parameters = (
-                transaction_id,
+                transaction_id.clone(),
                 description_contains.as_deref(),
                 amount_range.as_deref(),
                 period.as_deref(),
@@ -537,6 +541,7 @@ fn stingy_main() -> Result<()> {
             period,
             tags,
             not_tags,
+            untagged,
             description_contains,
             amount_range,
             account,
@@ -551,6 +556,17 @@ fn stingy_main() -> Result<()> {
                     ));
                 })?
             };
+            if *untagged {
+                if tags.len() > 0 || not_tags.len() > 0 {
+                    bail!(cmd.error(
+                        ErrorKind::ArgumentConflict,
+                        format!("--untagged cannot be used with --tags and --not-tags.")
+                    ));
+                }
+                // Since we match by substring and "" is a substring of all tags, if we put ""
+                // in not_tags we'll be excluding all transactions with any tags.
+                not_tags.push("".to_string());
+            }
             let accounts = commands::accounts::get_account_or_selected(&db, account.as_deref())?;
             let account_names: Vec<&str> = accounts
                 .iter()
