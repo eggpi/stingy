@@ -1,4 +1,4 @@
-use crate::database::{model, StingyDatabase};
+use crate::database::{model, NewOrExisting, StingyDatabase};
 use anyhow::{anyhow, bail, Result};
 use chrono::NaiveDate;
 use std::collections::HashMap;
@@ -7,13 +7,18 @@ use std::io::Read;
 struct Importer<'a> {
     db: &'a Box<dyn StingyDatabase>,
     accounts: HashMap<String, ()>,
+    bank: String,
 }
 
 impl Importer<'_> {
-    fn new<'a>(db: &'a Box<dyn StingyDatabase>) -> Result<Importer<'a>> {
+    fn new<'a>(db: &'a Box<dyn StingyDatabase>, format: &ImportFormat) -> Result<Importer<'a>> {
         Ok(Importer {
             db: db,
             accounts: HashMap::new(),
+            bank: match format {
+                ImportFormat::AIB => "AIB".to_string(),
+                ImportFormat::Revolut { .. } => "Revolut".to_string(),
+            },
         })
     }
 
@@ -23,11 +28,27 @@ impl Importer<'_> {
             name: transaction.account_name.to_string(),
             alias: None,
             selected: false,
+            bank: Some(self.bank.clone()),
         };
-        self.db.insert(account)?;
+        match self.db.insert(account.clone())? {
+            NewOrExisting::New(_) => {}
+            NewOrExisting::Existing => self.ensure_bank_is_set(account)?,
+        }
         self.accounts
             .insert(transaction.account_name.to_string(), ());
         self.db.insert(transaction).map(|_| ())
+    }
+
+    fn ensure_bank_is_set(&self, account: model::Account) -> Result<()> {
+        let all_accounts: Vec<model::Account> = self.db.get_all()?;
+        for mut existing in all_accounts {
+            if existing.name == account.name && existing.bank.is_none() {
+                existing.bank = account.bank;
+                self.db.update(&existing)?;
+                break;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -51,7 +72,7 @@ pub fn import<T>(
 where
     T: Read,
 {
-    let mut importer = Importer::new(db)?;
+    let mut importer = Importer::new(db, &format)?;
     let before: Vec<model::Transaction> = db.get_all()?;
     let latest_before = before
         .iter()
@@ -402,7 +423,7 @@ mod importer_tests {
         db.insert_test_data();
         crate::commands::accounts::alias(&db, "000000 - 00000000", "0").unwrap();
 
-        let mut importer = Importer::new(&db).unwrap();
+        let mut importer = Importer::new(&db, &ImportFormat::AIB).unwrap();
         let transaction = model::Transaction {
             id: None,
             account_name: "0".to_string(),
@@ -651,6 +672,35 @@ mod aib_import_tests {
             r#"Debit Amount, Credit Amount,Balance,Transaction Type"#
         );
         assert!(import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::AIB).is_err());
+    }
+
+    #[test]
+    fn populate_account_bank() {
+        let csv = format!("{CSV_HEADER}\n{DEBIT_TRANSACTION}");
+        let db = open_stingy_testing_database();
+        import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::AIB).unwrap();
+        let accounts: Vec<model::Account> = db.get_all().unwrap();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts.get(0).unwrap().bank, Some("AIB".to_string()));
+    }
+
+    #[test]
+    fn populate_account_bank_existing_account() {
+        let csv = format!(
+            "{CSV_HEADER}\n{}",
+            DEBIT_TRANSACTION.replace("455556 - 05229944", "333333 - 33333333")
+        );
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        import(&db, &mut [("csv", csv.as_bytes())], ImportFormat::AIB).unwrap();
+        let accounts: Vec<model::Account> = db.get_all().unwrap();
+        let account: &model::Account = accounts
+            .iter()
+            .filter(|a: &&model::Account| a.name == "333333 - 33333333")
+            .collect::<Vec<&model::Account>>()
+            .get(0)
+            .unwrap();
+        assert_eq!(account.bank, Some("AIB".to_string()));
     }
 }
 
@@ -902,5 +952,47 @@ mod revolut_import_tests {
         assert_eq!(transactions[1].description, "Café");
         assert_eq!(transactions[2].description, "Caffè");
         assert_eq!(transactions[3].description, "François");
+    }
+
+    #[test]
+    fn populate_account_bank_new_account() {
+        let csv = format!("{CSV_HEADER}\n{OUTGOING_TRANSFER}");
+        let db = open_stingy_testing_database();
+        import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut {
+                account: "0",
+                product: "Current",
+            },
+        )
+        .unwrap();
+        let accounts: Vec<model::Account> = db.get_all().unwrap();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts.get(0).unwrap().bank, Some("Revolut".to_string()));
+    }
+
+    #[test]
+    fn populate_account_bank_existing_account() {
+        let csv = format!("{CSV_HEADER}\n{OUTGOING_TRANSFER}");
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut {
+                account: "333333 - 33333333",
+                product: "Current",
+            },
+        )
+        .unwrap();
+        let accounts: Vec<model::Account> = db.get_all().unwrap();
+        let account: &model::Account = accounts
+            .iter()
+            .filter(|a: &&model::Account| a.name == "333333 - 33333333")
+            .collect::<Vec<&model::Account>>()
+            .get(0)
+            .unwrap();
+        assert_eq!(account.bank, Some("Revolut".to_string()));
     }
 }

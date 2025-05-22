@@ -17,6 +17,7 @@ pub struct Account {
     pub name: String,
     pub alias: Option<String>,
     pub selected: bool,
+    pub bank: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, FieldNamesAsArray)]

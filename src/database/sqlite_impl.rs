@@ -86,6 +86,11 @@ const MIGRATIONS: &[Migration] = &[
         sql: include_str!("./sql/migrations/005-transaction-id-tag-rules-have-precedence.sql"),
         disable_foreign_keys: false,
     },
+    Migration {
+        name: "006-account-bank.sql",
+        sql: include_str!("./sql/migrations/006-account-bank.sql"),
+        disable_foreign_keys: false,
+    },
 ];
 
 fn perform_migrations(conn: &sqlite::Connection, migrations: &[Migration]) -> Result<bool> {
@@ -563,6 +568,7 @@ impl TryFrom<Vec<sqlite::Value>> for model::Account {
             name: values.remove(0).try_into()?,
             alias: Option::<&str>::try_from(&values.remove(0))?.map(|s| s.to_string()),
             selected: (&values.remove(0)).try_into::<i64>()? > 0,
+            bank: Option::<&str>::try_from(&values.remove(0))?.map(|s| s.to_string()),
         })
     }
 }
@@ -577,6 +583,7 @@ impl From<&model::Account> for Vec<sqlite::Value> {
                 name,
                 alias,
                 selected,
+                bank,
             } => vec![
                 (*id).map(|v| v.into()).unwrap_or(sqlite::Value::Null),
                 name.as_str().into(),
@@ -585,6 +592,9 @@ impl From<&model::Account> for Vec<sqlite::Value> {
                     .map(|a| a.as_str().into())
                     .unwrap_or(sqlite::Value::Null),
                 (*selected as i64).into(),
+                bank.as_ref()
+                    .map(|b| b.as_str().into())
+                    .unwrap_or(sqlite::Value::Null),
             ],
         }
     }
@@ -1055,12 +1065,14 @@ mod account_model_operations_tests {
                 name: account_name.to_string(),
                 alias: None,
                 selected: false,
+                bank: Some("Revolut".to_string()),
             };
             if let NewOrExisting::New(inserted) = db.insert(account).unwrap() {
                 assert_eq!(Some(account_id), inserted.id);
                 assert_eq!(account_name, inserted.name);
                 assert_eq!(None, inserted.alias);
                 assert_eq!(false, inserted.selected);
+                assert_eq!("Revolut", inserted.bank.unwrap());
             } else {
                 assert!(false);
             }

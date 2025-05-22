@@ -21,6 +21,7 @@ pub fn open_stingy_testing_database() -> Box<dyn StingyDatabase> {
     SQLiteStingyDatabase::new_for_testing()
 }
 
+#[derive(Debug)]
 pub enum NewOrExisting<ModelType> {
     New(ModelType),
     Existing,

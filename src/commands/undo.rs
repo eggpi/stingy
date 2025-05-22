@@ -219,6 +219,7 @@ mod undo_tests {
                 name: format!("account_{step}"),
                 alias: None,
                 selected: false,
+                bank: None,
             };
             db.insert(account).unwrap();
         }
