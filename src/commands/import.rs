@@ -95,6 +95,8 @@ where
         })
         .min_by_key(|t| t.posted_date);
 
+    // FIXME: The last_before/first_after computation should happen per account!
+
     let mut accounts = vec![];
     accounts.extend(importer.accounts.into_keys());
     Ok(ImportResult {
