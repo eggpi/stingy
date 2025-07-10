@@ -83,7 +83,7 @@ enum Commands {
         amount_range: Option<String>,
 
         /// Only consider transactions for this account.
-        #[arg(long, global = true)]
+        #[arg(short, long, global = true)]
         account: Option<String>,
     },
 
