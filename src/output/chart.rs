@@ -210,6 +210,21 @@ fn by_month_rows_to_chart(
     Ok(chart)
 }
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+fn string_to_color(input: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    input.hash(&mut hasher);
+    let hash = hasher.finish();
+
+    let r = ((hash >> 0) & 0xFFFF) % 256;
+    let g = ((hash >> 16) & 0xFFFF) % 256;
+    let b = ((hash >> 32) & 0xFFFF) % 256;
+
+    format!("#{:02x}{:02x}{:02x}", r, g, b)
+}
+
 fn by_tag_rows_to_chart(rows: &[database::ByTagRow]) -> Result<charming::Chart> {
     let make_pie_chart = |name, center_x, data| {
         charming::series::Pie::new()
@@ -224,7 +239,14 @@ fn by_tag_rows_to_chart(rows: &[database::ByTagRow]) -> Result<charming::Chart> 
         let normalized_tag = if tag == "" { "(untagged)" } else { tag };
         let normalized_tag = format!("{normalized_tag}\n({})", amount.to_output_format());
         if pct >= 2.0 {
-            Some((amount, normalized_tag))
+            Some(charming::datatype::datapoint::DataPoint::Item(
+                charming::datatype::datapoint::DataPointItem::new(amount)
+                    .name(&normalized_tag)
+                    .item_style(
+                        charming::element::item_style::ItemStyle::new()
+                            .color(string_to_color(&tag)),
+                    ),
+            ))
         } else {
             None
         }
