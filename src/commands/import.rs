@@ -208,7 +208,7 @@ where
                     a.parse()
                         .map_err(|_| anyhow!("{path}:{line} failed to parse 'Amount'"))?
                 };
-                if amount >= 0.0 {
+                if amount > 0.0 {
                     transaction.transaction_type = model::TransactionType::Credit;
                     transaction.credit_amount = amount;
                 } else {
@@ -756,6 +756,11 @@ mod revolut_import_tests {
         "Shady,3.22,1.07,EUR,COMPLETED,100.00"
     );
 
+    const CHARGE: &str = concat!(
+        "CHARGE,Current,2021-03-01 12:18:24,2021-03-01 8:12:27,",
+        "Shady,0,1.07,EUR,COMPLETED,100.00"
+    );
+
     #[test]
     fn import_one_row() {
         let csv = format!("{CSV_HEADER}\n{CARD_PAYMENT}");
@@ -909,6 +914,24 @@ mod revolut_import_tests {
         let transactions: Vec<model::Transaction> = db.get_all().unwrap();
         assert_eq!(transactions.len(), 1);
         assert!((transactions[0].credit_amount - 2.15).abs() < 0.0000001);
+    }
+
+    #[test]
+    fn zero_amount_with_fee() {
+        let csv = format!("{CSV_HEADER}\n{}", CHARGE);
+        let db = open_stingy_testing_database();
+        import(
+            &db,
+            &mut [("csv", csv.as_bytes())],
+            ImportFormat::Revolut {
+                account: "0",
+                product: "Current",
+            },
+        )
+        .unwrap();
+        let transactions: Vec<model::Transaction> = db.get_all().unwrap();
+        assert_eq!(transactions.len(), 1);
+        assert!((transactions[0].debit_amount - 1.07).abs() < 0.0000001);
     }
 
     #[test]
