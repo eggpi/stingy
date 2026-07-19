@@ -789,33 +789,90 @@ fn query_filters_to_sql(filters: QueryFilters) -> (String, Vec<(String, sqlite::
     (sql, args.drain().collect())
 }
 
-macro_rules! impl_query_operations {
-    ($row_type:ty, $template:expr, $transaction_types:expr, $((replace $from:expr, $to:expr)),*) => (
-        impl QueryOperations<$row_type> for SQLiteStingyDatabase {
-            fn query(&self, mut filters: QueryFilters) -> Result<QueryResult<$row_type>> {
-                let mut query_sql = $template.to_string();
-                let transaction_types: Vec<model::TransactionType> = $transaction_types;
-                if (transaction_types.len() > 0) {
-                    filters.transaction_types = transaction_types;
-                }
-                let (filters_sql, args) = query_filters_to_sql(filters);
-                let args: Vec<_> = args.iter().map(|(k, v)| (k.as_str(), v)).collect();
+fn get_and_populate_query_template(
+    template: &str,
+    filters: QueryFilters,
+) -> (String, Vec<(String, sqlite::Value)>) {
+    let mut query_sql = template.to_string();
+    let (filters_sql, args) = query_filters_to_sql(filters);
+    query_sql = query_sql.replace("{filters}", &filters_sql);
+    (query_sql, args)
+}
 
-                query_sql = query_sql.replace("{filters}", &filters_sql);
-                $(
-                    query_sql = query_sql.replace($from, $to);
-                )*
+impl QueryOperations for SQLiteStingyDatabase {
+    fn query_debits(&self, mut filters: QueryFilters) -> Result<QueryResult<DebitsRow>> {
+        filters.transaction_types = vec![
+            model::TransactionType::Debit,
+            model::TransactionType::DirectDebit,
+        ];
+        let (mut query_sql, args) = get_and_populate_query_template(
+            include_str!("./sql/queries/credits_debits.sql"),
+            filters,
+        );
+        let args: Vec<_> = args.iter().map(|(k, v)| (k.as_str(), v)).collect();
+        query_sql = query_sql.replace("{amount_column}", "debit_amount");
 
-                let sqlite_rows = sql(&self.conn, &query_sql, args.as_slice())?;
-                let mut rows = Vec::new();
-                for row in sqlite_rows {
-                    rows.push(row.try_into()?);
-                }
-                Ok(QueryResult { rows })
-            }
+        let sqlite_rows = sql(&self.conn, &query_sql, args.as_slice())?;
+        let mut rows = Vec::new();
+        for row in sqlite_rows {
+            rows.push(row.try_into()?);
         }
-    );
-    ($row_type:ty, $sql:expr) => (impl_query_operations!($row_type, $sql, vec![], (replace "", ""));)
+        Ok(QueryResult { rows })
+    }
+
+    fn query_credits(&self, mut filters: QueryFilters) -> Result<QueryResult<CreditsRow>> {
+        filters.transaction_types = vec![model::TransactionType::Credit];
+        let (mut query_sql, args) = get_and_populate_query_template(
+            include_str!("./sql/queries/credits_debits.sql"),
+            filters,
+        );
+        let args: Vec<_> = args.iter().map(|(k, v)| (k.as_str(), v)).collect();
+        query_sql = query_sql.replace("{amount_column}", "credit_amount");
+
+        let sqlite_rows = sql(&self.conn, &query_sql, args.as_slice())?;
+        let mut rows = Vec::new();
+        for row in sqlite_rows {
+            rows.push(row.try_into()?);
+        }
+        Ok(QueryResult { rows })
+    }
+
+    fn query_by_tag(&self, filters: QueryFilters) -> Result<QueryResult<ByTagRow>> {
+        let (query_sql, args) =
+            get_and_populate_query_template(include_str!("./sql/queries/by_tag.sql"), filters);
+        let args: Vec<_> = args.iter().map(|(k, v)| (k.as_str(), v)).collect();
+
+        let sqlite_rows = sql(&self.conn, &query_sql, args.as_slice())?;
+        let mut rows = Vec::new();
+        for row in sqlite_rows {
+            rows.push(row.try_into()?);
+        }
+        Ok(QueryResult { rows })
+    }
+
+    fn query_by_time(
+        &self,
+        filters: QueryFilters,
+        aggregation: &TimeAggregation,
+    ) -> Result<QueryResult<ByTimeRow>> {
+        let (mut query_sql, args) =
+            get_and_populate_query_template(include_str!("./sql/queries/by_time.sql"), filters);
+        let args: Vec<_> = args.iter().map(|(k, v)| (k.as_str(), v)).collect();
+
+        let aggregation_expr = if *aggregation == TimeAggregation::Month {
+            r#"DATE(posted_date, "start of month", "+1 month", "-1 day")"#
+        } else {
+            r#"DATE(posted_date, "weekday 6")"#
+        };
+        query_sql = query_sql.replace("{aggregation_expr}", aggregation_expr);
+
+        let sqlite_rows = sql(&self.conn, &query_sql, args.as_slice())?;
+        let mut rows = Vec::new();
+        for row in sqlite_rows {
+            rows.push(row.try_into()?);
+        }
+        Ok(QueryResult { rows })
+    }
 }
 
 impl TryFrom<Vec<sqlite::Value>> for DebitsRow {
@@ -839,12 +896,6 @@ impl TryFrom<Vec<sqlite::Value>> for DebitsRow {
     }
 }
 
-impl_query_operations!(
-    DebitsRow,
-    include_str!("./sql/queries/credits_debits.sql"),
-    vec![model::TransactionType::Debit, model::TransactionType::DirectDebit],
-    (replace "{amount_column}", "debit_amount"));
-
 impl TryFrom<Vec<sqlite::Value>> for CreditsRow {
     type Error = anyhow::Error;
 
@@ -866,20 +917,14 @@ impl TryFrom<Vec<sqlite::Value>> for CreditsRow {
     }
 }
 
-impl_query_operations!(
-    CreditsRow,
-    include_str!("./sql/queries/credits_debits.sql"),
-    vec![model::TransactionType::Credit],
-    (replace "{amount_column}", "credit_amount"));
-
-impl TryFrom<Vec<sqlite::Value>> for ByMonthRow {
+impl TryFrom<Vec<sqlite::Value>> for ByTimeRow {
     type Error = anyhow::Error;
 
     fn try_from(mut values: Vec<sqlite::Value>) -> Result<Self> {
         assert_eq!(values.len(), Self::FIELD_NAMES_AS_ARRAY.len());
         Ok(Self {
             account_name: values.remove(0).try_into()?,
-            month: try_from_sqlite_value_to_naive_date(values.remove(0))?,
+            aggregation_window_end: try_from_sqlite_value_to_naive_date(values.remove(0))?,
             credit_amount: (&as_float!(values.remove(0))).try_into()?,
             debit_amount: (&as_float!(values.remove(0))).try_into()?,
             credit_minus_debit: (&as_float!(values.remove(0))).try_into()?,
@@ -889,8 +934,6 @@ impl TryFrom<Vec<sqlite::Value>> for ByMonthRow {
         })
     }
 }
-
-impl_query_operations!(ByMonthRow, include_str!("./sql/queries/by_month.sql"));
 
 impl TryFrom<Vec<sqlite::Value>> for ByTagRow {
     type Error = anyhow::Error;
@@ -906,8 +949,6 @@ impl TryFrom<Vec<sqlite::Value>> for ByTagRow {
         })
     }
 }
-
-impl_query_operations!(ByTagRow, include_str!("./sql/queries/by_tag.sql"));
 
 #[cfg(test)]
 mod sqlite_database_tests {

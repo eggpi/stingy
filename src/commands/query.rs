@@ -38,31 +38,31 @@ where
         PreparedQuery::Debits {
             show_transaction_id,
         } => {
-            let query_result = db.query(filters)?;
+            let query_result = db.query_debits(filters)?;
             let mut to = table::TableOutput::new(writer, None);
             to.render_debits(&query_result.rows, *show_transaction_id)
         }
         PreparedQuery::Credits {
             show_transaction_id,
         } => {
-            let query_result = db.query(filters)?;
+            let query_result = db.query_credits(filters)?;
             let mut to = table::TableOutput::new(writer, None);
             to.render_credits(&query_result.rows, *show_transaction_id)
         }
-        PreparedQuery::ByMonth { table } => {
+        PreparedQuery::ByTime { aggregate, table } => {
             // Balance only really makes sense for some types of filter.
             let show_balance = tags.len() == 0
                 && not_tags.len() == 0
                 && description_contains.is_none()
                 && amount_min.is_none()
                 && amount_max.is_none();
-            let query_result = db.query(filters)?;
+            let query_result = db.query_by_time(filters, &aggregate)?;
             if *table {
                 let mut to = table::TableOutput::new(writer, None);
-                to.render_by_month(&query_result.rows, show_balance)
+                to.render_by_time(&query_result.rows, show_balance, &aggregate)
             } else {
                 let mut co = chart::ChartOutput::new(writer, None);
-                co.render_by_month(&query_result.rows, show_balance)
+                co.render_by_time(&query_result.rows, show_balance, &aggregate)
             }
         }
         PreparedQuery::ByTag {
@@ -79,7 +79,7 @@ where
                 }
                 None => Vec::new(),
             };
-            let query_result = db.query(filters)?;
+            let query_result = db.query_by_tag(filters)?;
             if *table {
                 let mut to = table::TableOutput::new(writer, None);
                 to.render_by_tag(&query_result.rows)
@@ -913,6 +913,7 @@ mod credits_tests {
 mod by_month_tests {
     use super::*;
     use crate::database::open_stingy_testing_database;
+    use crate::TimeAggregation;
     use std::io::Cursor;
 
     #[test]
@@ -922,7 +923,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -960,7 +964,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: true,
+            },
             &vec!["coffee".to_string()],
             &vec![],
             None,
@@ -997,7 +1004,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: true,
+            },
             &vec![],
             &vec![],
             Some("coffee"),
@@ -1035,7 +1045,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1067,7 +1080,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1104,7 +1120,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1156,7 +1175,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1255,7 +1277,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1327,7 +1352,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1376,7 +1404,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1416,7 +1447,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: true,
+            },
             &vec![],
             &vec!["daily".to_string()],
             None,
@@ -1732,6 +1766,7 @@ mod by_tag_tests {
 mod chart_tests {
     use super::*;
     use crate::database::open_stingy_testing_database;
+    use crate::TimeAggregation;
     use serde_json;
     use std::io::Cursor;
 
@@ -1743,7 +1778,10 @@ mod chart_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: false },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: false,
+            },
             &vec![],
             &vec![],
             None,
@@ -1771,7 +1809,10 @@ mod chart_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: false },
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Month,
+                table: false,
+            },
             &vec!["coffee".to_string()],
             &vec![],
             None,
@@ -1786,6 +1827,109 @@ mod chart_tests {
             let chart = serde_json::from_str::<serde_json::Value>(&chart_json).unwrap();
             assert_eq!(chart.get("xAxis").unwrap().as_array().unwrap().len(), 1);
             assert_eq!(chart.get("yAxis").unwrap().as_array().unwrap().len(), 1);
+        } else {
+            unimplemented!()
+        }
+    }
+}
+
+#[cfg(test)]
+mod by_week_tests {
+    use super::*;
+    use crate::database::open_stingy_testing_database;
+    use crate::TimeAggregation;
+    use std::io::Cursor;
+
+    #[test]
+    fn columns() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Week,
+                table: true,
+            },
+            &vec![],
+            &vec![],
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec![],
+        )
+        .unwrap();
+        if let OutputForTesting::Table((columns, _)) = output_for_testing {
+            assert_eq!(
+                columns,
+                vec![
+                    "Account",
+                    "Week ↑",
+                    "Credit Amount",
+                    "Debit Amount",
+                    "Credit - Debit",
+                    "Balance",
+                    "Credit (cumulative) ↑",
+                    "Debit (cumulative) ↑",
+                ]
+            );
+        } else {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn multiple_weeks() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Week,
+                table: true,
+            },
+            &vec![],
+            &vec![],
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec!["000000 - 00000000"],
+        )
+        .unwrap();
+        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+            assert_eq!(rows.len(), 2);
+            assert_eq!(
+                rows[0],
+                vec![
+                    "000000 - 00000000",
+                    "2021/03/06",
+                    "0.00",
+                    "67.76",
+                    "-67.76",
+                    "9852.76",
+                    "1000.00",
+                    "139.98"
+                ]
+            );
+            assert_eq!(
+                rows[1],
+                vec![
+                    "000000 - 00000000",
+                    "2021/02/27",
+                    "1000.00",
+                    "72.22",
+                    "927.78",
+                    "9927.52",
+                    "1000.00",
+                    "72.22"
+                ]
+            );
         } else {
             unimplemented!()
         }

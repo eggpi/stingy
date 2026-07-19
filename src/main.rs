@@ -180,6 +180,25 @@ impl Display for TransactionType {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum TimeAggregation {
+    Week,
+    Month,
+}
+
+impl Display for TimeAggregation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(
+            f,
+            "{}",
+            match self {
+                TimeAggregation::Week => "week".to_string(),
+                TimeAggregation::Month => "month".to_string(),
+            }
+        )
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum PreparedQuery {
     /// A detailed view of debit transactions.
@@ -194,8 +213,12 @@ pub enum PreparedQuery {
         #[arg(long, global = true)]
         show_transaction_id: bool,
     },
-    /// A summary of expenses, grouped by month.
-    ByMonth {
+    /// A summary of expenses, grouped by time.
+    ByTime {
+        /// Aggregate by this window.
+        #[arg(long, default_value_t = TimeAggregation::Month)]
+        aggregate: TimeAggregation,
+
         /// Show the results as a table instead of the default chart.
         #[arg(long, global = true)]
         table: bool,
@@ -295,7 +318,7 @@ fn stingy_main() -> Result<()> {
                 binary_name
             )
         }
-        // On empty invocation, default to ByMonth for the current year.
+        // On empty invocation, default to "by month" for the current year.
         None => {
             let accounts = commands::accounts::get_account_or_selected(&db, None)?;
             let accounts_names: Vec<&str> = accounts
@@ -307,7 +330,10 @@ fn stingy_main() -> Result<()> {
             commands::query::command_query(
                 &db,
                 &mut io::stdout(),
-                &PreparedQuery::ByMonth { table: false },
+                &PreparedQuery::ByTime {
+                    aggregate: TimeAggregation::Month,
+                    table: false,
+                },
                 &Vec::new(), // tags
                 &Vec::new(), // not_tags
                 None,        // description_contains
@@ -586,7 +612,7 @@ fn stingy_main() -> Result<()> {
                 account_names,
             )?;
             match query {
-                PreparedQuery::ByMonth { table: false }
+                PreparedQuery::ByTime { table: false, .. }
                 | PreparedQuery::ByTag { table: false, .. } => {
                     println!("{TIP} Add --table to this command to view details in table format.")
                 }
