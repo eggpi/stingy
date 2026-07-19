@@ -113,14 +113,14 @@ where
         self.render_table(&columns, &rows)
     }
 
-    fn render_by_month(
+    fn render_by_time(
         &mut self,
-        rows: &[database::ByMonthRow],
+        rows: &[database::ByTimeRow],
         show_balance: bool,
+        aggregation: &database::TimeAggregation,
     ) -> Result<OutputForTesting> {
         let mut columns = vec![
             "Account".to_string(),
-            "Month ↑".to_string(),
             "Credit Amount".to_string(),
             "Debit Amount".to_string(),
             "Credit - Debit".to_string(),
@@ -130,13 +130,20 @@ where
         if show_balance {
             columns.insert(5, "Balance".to_string());
         }
+        let date_fmt = if *aggregation == database::TimeAggregation::Month {
+            columns.insert(1, "Month ↑".to_string());
+            "%Y/%m"
+        } else {
+            columns.insert(1, "Week ↑".to_string());
+            "%Y/%m/%d"
+        };
         let rows: Vec<Vec<String>> = rows
             .iter()
-            .map(|r: &database::ByMonthRow| {
+            .map(|r: &database::ByTimeRow| {
                 let mut row = vec![
                     r.account_name.to_output_format(),
-                    // FIXME can't use to_output_format() because we want YYYY/MM.
-                    format!("{}", r.month.format("%Y/%m")),
+                    // FIXME can't use to_output_format()!
+                    format!("{}", r.aggregation_window_end.format(date_fmt)),
                     r.credit_amount.to_output_format(),
                     r.debit_amount.to_output_format(),
                     r.credit_minus_debit.to_output_format(),

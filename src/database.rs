@@ -27,6 +27,12 @@ pub enum NewOrExisting<ModelType> {
     Existing,
 }
 
+#[derive(Debug, PartialEq)]
+pub enum TimeAggregation {
+    Week,
+    Month,
+}
+
 pub trait ModelOperations<ModelType> {
     fn get_all(&self) -> Result<Vec<ModelType>> {
         unimplemented!();
@@ -86,9 +92,9 @@ pub struct CreditsRow {
 
 #[derive(Default, Debug, Clone, FieldNamesAsArray)]
 #[field_names_as_array(visibility = "pub")]
-pub struct ByMonthRow {
+pub struct ByTimeRow {
     pub account_name: String,
-    pub month: NaiveDate,
+    pub aggregation_window_end: NaiveDate,
     pub credit_amount: f64,
     pub debit_amount: f64,
     pub credit_minus_debit: f64,
@@ -107,8 +113,16 @@ pub struct ByTagRow {
     pub tag_credit_pct: f64,
 }
 
-pub trait QueryOperations<RowType> {
-    fn query(&self, filters: QueryFilters) -> Result<QueryResult<RowType>>;
+pub trait QueryOperations {
+    // FIXME These should be query_by_transaction?
+    fn query_debits(&self, filters: QueryFilters) -> Result<QueryResult<DebitsRow>>;
+    fn query_credits(&self, filters: QueryFilters) -> Result<QueryResult<CreditsRow>>;
+    fn query_by_tag(&self, filters: QueryFilters) -> Result<QueryResult<ByTagRow>>;
+    fn query_by_time(
+        &self,
+        filters: QueryFilters,
+        aggregation: &TimeAggregation,
+    ) -> Result<QueryResult<ByTimeRow>>;
 }
 
 pub trait UndoOperations {
@@ -127,10 +141,7 @@ pub trait StingyDatabase:
     ModelOperations<model::Account>
     + ModelOperations<model::Transaction>
     + ModelOperations<model::TagRule>
-    + QueryOperations<DebitsRow>
-    + QueryOperations<CreditsRow>
-    + QueryOperations<ByMonthRow>
-    + QueryOperations<ByTagRow>
+    + QueryOperations
     + UndoOperations
     + private::Reset
 {

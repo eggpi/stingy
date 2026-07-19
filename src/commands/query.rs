@@ -2,6 +2,7 @@ use crate::database;
 use crate::database::model;
 use crate::output::{chart, table, Output, OutputForTesting};
 use crate::PreparedQuery;
+use crate::TimeAggregation;
 use anyhow::Result;
 use chrono::NaiveDate;
 use std::io::Write;
@@ -38,31 +39,35 @@ where
         PreparedQuery::Debits {
             show_transaction_id,
         } => {
-            let query_result = db.query(filters)?;
+            let query_result = db.query_debits(filters)?;
             let mut to = table::TableOutput::new(writer, None);
             to.render_debits(&query_result.rows, *show_transaction_id)
         }
         PreparedQuery::Credits {
             show_transaction_id,
         } => {
-            let query_result = db.query(filters)?;
+            let query_result = db.query_credits(filters)?;
             let mut to = table::TableOutput::new(writer, None);
             to.render_credits(&query_result.rows, *show_transaction_id)
         }
-        PreparedQuery::ByMonth { table } => {
+        PreparedQuery::ByTime { aggregate, table } => {
             // Balance only really makes sense for some types of filter.
             let show_balance = tags.len() == 0
                 && not_tags.len() == 0
                 && description_contains.is_none()
                 && amount_min.is_none()
                 && amount_max.is_none();
-            let query_result = db.query(filters)?;
+            let aggregate = match aggregate {
+                Some(TimeAggregation::week) => database::TimeAggregation::Week,
+                _ => database::TimeAggregation::Month,
+            };
+            let query_result = db.query_by_time(filters, &aggregate)?;
             if *table {
                 let mut to = table::TableOutput::new(writer, None);
-                to.render_by_month(&query_result.rows, show_balance)
+                to.render_by_time(&query_result.rows, show_balance, &aggregate)
             } else {
                 let mut co = chart::ChartOutput::new(writer, None);
-                co.render_by_month(&query_result.rows, show_balance)
+                co.render_by_time(&query_result.rows, show_balance, &aggregate)
             }
         }
         PreparedQuery::ByTag {
@@ -79,7 +84,7 @@ where
                 }
                 None => Vec::new(),
             };
-            let query_result = db.query(filters)?;
+            let query_result = db.query_by_tag(filters)?;
             if *table {
                 let mut to = table::TableOutput::new(writer, None);
                 to.render_by_tag(&query_result.rows)
@@ -922,7 +927,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -960,7 +968,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: true,
+            },
             &vec!["coffee".to_string()],
             &vec![],
             None,
@@ -997,7 +1008,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: true,
+            },
             &vec![],
             &vec![],
             Some("coffee"),
@@ -1035,7 +1049,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1067,7 +1084,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1104,7 +1124,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1156,7 +1179,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1255,7 +1281,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1327,7 +1356,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1376,7 +1408,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: true,
+            },
             &vec![],
             &vec![],
             None,
@@ -1416,7 +1451,10 @@ mod by_month_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: true },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: true,
+            },
             &vec![],
             &vec!["daily".to_string()],
             None,
@@ -1743,7 +1781,10 @@ mod chart_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: false },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: false,
+            },
             &vec![],
             &vec![],
             None,
@@ -1771,7 +1812,10 @@ mod chart_tests {
         let output_for_testing = command_query(
             &db,
             &mut Cursor::new(vec![]),
-            &PreparedQuery::ByMonth { table: false },
+            &PreparedQuery::ByTime {
+                aggregate: None,
+                table: false,
+            },
             &vec!["coffee".to_string()],
             &vec![],
             None,

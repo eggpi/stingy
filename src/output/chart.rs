@@ -82,9 +82,10 @@ fn value_axis(name: Option<&str>) -> charming::component::Axis {
     }
 }
 
-fn by_month_rows_to_chart(
-    rows: &[database::ByMonthRow],
+fn by_time_rows_to_chart(
+    rows: &[database::ByTimeRow],
     show_balance: bool,
+    aggregation: &database::TimeAggregation,
 ) -> Result<charming::Chart> {
     let mut accounts: Vec<_> = rows.iter().map(|r| r.account_name.clone()).collect();
     accounts.sort();
@@ -95,17 +96,17 @@ fn by_month_rows_to_chart(
     let mut account_to_credits_series = collections::HashMap::new();
 
     let mut rows = rows.to_vec();
-    rows.sort_by_key(|row| row.month);
+    rows.sort_by_key(|row| row.aggregation_window_end);
 
-    let mut months = vec![];
+    let mut windows = vec![];
     let mut i = 0;
     while i < rows.len() {
         let mut row = &rows[i];
-        let month = row.month;
-        months.push(month);
+        let window = row.aggregation_window_end;
+        windows.push(window);
 
-        // Initialize all series for this month.
-        // Use 0.0 for the debits and credits series, and the last month's
+        // initialize all series for this window.
+        // use 0.0 for the debits and credits series, and the last window's
         // balance (if available) for the balance.
         for account_name in &accounts {
             for series in [
@@ -125,12 +126,12 @@ fn by_month_rows_to_chart(
 
         while i < rows.len() {
             row = &rows[i];
-            if row.month != month {
+            if row.aggregation_window_end != window {
                 break;
             }
 
-            // Replace the defaults with real information, if the account actually
-            // has any for this month.
+            // replace the defaults with real information, if the account actually
+            // has any for this window.
             *account_to_balance_series
                 .get_mut(&row.account_name)
                 .unwrap()
@@ -150,21 +151,27 @@ fn by_month_rows_to_chart(
         }
     }
 
-    months.dedup();
-    let months = months
+    let date_fmt = if *aggregation == database::TimeAggregation::Month {
+        "%b/%Y"
+    } else {
+        "%Y/%m/%d"
+    };
+
+    windows.dedup();
+    let windows = windows
         .iter()
-        .map(|m| m.format("%b/%Y").to_string())
+        .map(|m| m.format(date_fmt).to_string())
         .collect();
 
     let mut chart = default_chart()
         .legend(default_legend())
-        .x_axis(category_axis(&months))
+        .x_axis(category_axis(&windows))
         .y_axis(value_axis(Some("Credits (+) / Debits (-)")));
     if show_balance {
         chart = chart
             .grid(charming::component::Grid::new().height("30%").bottom("7%"))
             .grid(charming::component::Grid::new().height("30%").top("17%"))
-            .x_axis(category_axis(&months).grid_index(1))
+            .x_axis(category_axis(&windows).grid_index(1))
             .y_axis(value_axis(Some("Balance (b)")).grid_index(1));
     } else {
         chart = chart.grid(charming::component::Grid::new().top("17%"));
@@ -278,12 +285,13 @@ where
         ChartOutput { writer: writer }
     }
 
-    fn render_by_month(
+    fn render_by_time(
         &mut self,
-        rows: &[database::ByMonthRow],
+        rows: &[database::ByTimeRow],
         show_balance: bool,
+        aggregation: &database::TimeAggregation,
     ) -> Result<OutputForTesting> {
-        let chart = by_month_rows_to_chart(rows, show_balance)?;
+        let chart = by_time_rows_to_chart(rows, show_balance, aggregation)?;
         chart_to_sixel(&mut self.writer, &chart)?;
         Ok(OutputForTesting::Chart(chart.to_string()))
     }

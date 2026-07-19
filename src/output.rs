@@ -26,10 +26,11 @@ where
         rows: &[database::CreditsRow],
         show_transaction_id: bool,
     ) -> Result<OutputForTesting>;
-    fn render_by_month(
+    fn render_by_time(
         &mut self,
-        rows: &[database::ByMonthRow],
+        rows: &[database::ByTimeRow],
         show_balance: bool,
+        aggregation: &database::TimeAggregation,
     ) -> Result<OutputForTesting>;
     fn render_by_tag(&mut self, rows: &[database::ByTagRow]) -> Result<OutputForTesting>;
 }
