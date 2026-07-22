@@ -7,6 +7,7 @@ use std::process;
 use crate::database;
 use crate::output::format::ToOutputFormat;
 use crate::output::{Output, OutputForTesting};
+use crate::TimeAggregation;
 
 const FONT_SIZE: f64 = 25.0;
 const TITLE_FONT_SIZE: f64 = FONT_SIZE * 1.5;
@@ -85,7 +86,7 @@ fn value_axis(name: Option<&str>) -> charming::component::Axis {
 fn by_time_rows_to_chart(
     rows: &[database::ByTimeRow],
     show_balance: bool,
-    aggregation: &database::TimeAggregation,
+    aggregation: &TimeAggregation,
 ) -> Result<charming::Chart> {
     let mut accounts: Vec<_> = rows.iter().map(|r| r.account_name.clone()).collect();
     accounts.sort();
@@ -151,7 +152,7 @@ fn by_time_rows_to_chart(
         }
     }
 
-    let date_fmt = if *aggregation == database::TimeAggregation::Month {
+    let date_fmt = if *aggregation == TimeAggregation::Month {
         "%b/%Y"
     } else {
         "%Y/%m/%d"
@@ -289,7 +290,7 @@ where
         &mut self,
         rows: &[database::ByTimeRow],
         show_balance: bool,
-        aggregation: &database::TimeAggregation,
+        aggregation: &TimeAggregation,
     ) -> Result<OutputForTesting> {
         let chart = by_time_rows_to_chart(rows, show_balance, aggregation)?;
         chart_to_sixel(&mut self.writer, &chart)?;

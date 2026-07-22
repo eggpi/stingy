@@ -180,11 +180,23 @@ impl Display for TransactionType {
     }
 }
 
-#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum TimeAggregation {
-    week,
-    month,
+    Week,
+    Month,
+}
+
+impl Display for TimeAggregation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(
+            f,
+            "{}",
+            match self {
+                TimeAggregation::Week => "week".to_string(),
+                TimeAggregation::Month => "month".to_string(),
+            }
+        )
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -204,8 +216,8 @@ pub enum PreparedQuery {
     /// A summary of expenses, grouped by time.
     ByTime {
         /// Aggregate by this window.
-        #[arg(long)]
-        aggregate: Option<TimeAggregation>,
+        #[arg(long, default_value_t = TimeAggregation::Month)]
+        aggregate: TimeAggregation,
 
         /// Show the results as a table instead of the default chart.
         #[arg(long, global = true)]
@@ -319,7 +331,7 @@ fn stingy_main() -> Result<()> {
                 &db,
                 &mut io::stdout(),
                 &PreparedQuery::ByTime {
-                    aggregate: Some(TimeAggregation::month),
+                    aggregate: TimeAggregation::Month,
                     table: false,
                 },
                 &Vec::new(), // tags

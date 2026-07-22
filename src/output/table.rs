@@ -1,6 +1,7 @@
 use crate::database;
 use crate::output::format::ToOutputFormat;
 use crate::output::{Output, OutputForTesting};
+use crate::TimeAggregation;
 use anyhow::{anyhow, bail, Result};
 use pager::Pager;
 use std::cmp::{max, min};
@@ -117,7 +118,7 @@ where
         &mut self,
         rows: &[database::ByTimeRow],
         show_balance: bool,
-        aggregation: &database::TimeAggregation,
+        aggregation: &TimeAggregation,
     ) -> Result<OutputForTesting> {
         let mut columns = vec![
             "Account".to_string(),
@@ -128,9 +129,9 @@ where
             "Debit (cumulative) ↑".to_string(),
         ];
         if show_balance {
-            columns.insert(5, "Balance".to_string());
+            columns.insert(4, "Balance".to_string());
         }
-        let date_fmt = if *aggregation == database::TimeAggregation::Month {
+        let date_fmt = if *aggregation == TimeAggregation::Month {
             columns.insert(1, "Month ↑".to_string());
             "%Y/%m"
         } else {

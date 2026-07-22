@@ -1,3 +1,4 @@
+use crate::TimeAggregation;
 use anyhow::Result;
 use chrono::NaiveDate;
 use struct_field_names_as_array::FieldNamesAsArray;
@@ -25,12 +26,6 @@ pub fn open_stingy_testing_database() -> Box<dyn StingyDatabase> {
 pub enum NewOrExisting<ModelType> {
     New(ModelType),
     Existing,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum TimeAggregation {
-    Week,
-    Month,
 }
 
 pub trait ModelOperations<ModelType> {

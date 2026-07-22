@@ -1,4 +1,5 @@
 use crate::database;
+use crate::TimeAggregation;
 use anyhow::Result;
 use std::io::Write;
 
@@ -30,7 +31,7 @@ where
         &mut self,
         rows: &[database::ByTimeRow],
         show_balance: bool,
-        aggregation: &database::TimeAggregation,
+        aggregation: &TimeAggregation,
     ) -> Result<OutputForTesting>;
     fn render_by_tag(&mut self, rows: &[database::ByTagRow]) -> Result<OutputForTesting>;
 }
