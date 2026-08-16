@@ -184,6 +184,7 @@ impl Display for TransactionType {
 pub enum TimeAggregation {
     Week,
     Month,
+    Year,
 }
 
 impl Display for TimeAggregation {
@@ -194,6 +195,7 @@ impl Display for TimeAggregation {
             match self {
                 TimeAggregation::Week => "week".to_string(),
                 TimeAggregation::Month => "month".to_string(),
+                TimeAggregation::Year => "year".to_string(),
             }
         )
     }

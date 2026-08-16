@@ -154,8 +154,10 @@ fn by_time_rows_to_chart(
 
     let date_fmt = if *aggregation == TimeAggregation::Month {
         "%b/%Y"
-    } else {
+    } else if *aggregation == TimeAggregation::Week {
         "%Y/%m/%d"
+    } else {
+        "%Y"
     };
 
     windows.dedup();

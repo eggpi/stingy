@@ -134,9 +134,12 @@ where
         let date_fmt = if *aggregation == TimeAggregation::Month {
             columns.insert(1, "Month ↑".to_string());
             "%Y/%m"
-        } else {
+        } else if *aggregation == TimeAggregation::Week {
             columns.insert(1, "Week ↑".to_string());
             "%Y/%m/%d"
+        } else {
+            columns.insert(1, "Year ↑".to_string());
+            "%Y"
         };
         let rows: Vec<Vec<String>> = rows
             .iter()

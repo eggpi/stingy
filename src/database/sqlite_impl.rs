@@ -861,8 +861,10 @@ impl QueryOperations for SQLiteStingyDatabase {
 
         let aggregation_expr = if *aggregation == TimeAggregation::Month {
             r#"DATE(posted_date, "start of month", "+1 month", "-1 day")"#
-        } else {
+        } else if *aggregation == TimeAggregation::Week {
             r#"DATE(posted_date, "weekday 6")"#
+        } else {
+            r#"DATE(posted_date, "start of year", "+1 year", "-1 day")"#
         };
         query_sql = query_sql.replace("{aggregation_expr}", aggregation_expr);
 
