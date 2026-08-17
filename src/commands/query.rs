@@ -1973,3 +1973,93 @@ mod by_week_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod by_year_tests {
+    use super::*;
+    use crate::database::open_stingy_testing_database;
+    use crate::TimeAggregation;
+    use std::io::Cursor;
+
+    #[test]
+    fn columns() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Year,
+                table: true,
+            },
+            &vec![],
+            &vec![],
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec![],
+        )
+        .unwrap();
+        if let Some(OutputForTesting::Table((columns, _))) = output_for_testing {
+            assert_eq!(
+                columns,
+                vec![
+                    "Account",
+                    "Year ↑",
+                    "Credit Amount",
+                    "Debit Amount",
+                    "Credit - Debit",
+                    "Balance",
+                    "Credit (cumulative) ↑",
+                    "Debit (cumulative) ↑",
+                ]
+            );
+        } else {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn one_year() {
+        let db = open_stingy_testing_database();
+        db.insert_test_data();
+
+        let output_for_testing = command_query(
+            &db,
+            &mut Cursor::new(vec![]),
+            &PreparedQuery::ByTime {
+                aggregate: TimeAggregation::Year,
+                table: true,
+            },
+            &vec![],
+            &vec![],
+            None,
+            None,
+            None,
+            None,
+            None,
+            vec!["000000 - 00000000"],
+        )
+        .unwrap();
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
+            assert_eq!(rows.len(), 1);
+            assert_eq!(
+                rows[0],
+                vec![
+                    "000000 - 00000000",
+                    "2021",
+                    "1000.00",
+                    "139.98",
+                    "860.02",
+                    "9852.76",
+                    "1000.00",
+                    "139.98"
+                ]
+            );
+        } else {
+            unimplemented!()
+        }
+    }
+}
