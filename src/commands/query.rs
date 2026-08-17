@@ -18,7 +18,7 @@ pub fn command_query<W>(
     from: Option<NaiveDate>,
     to: Option<NaiveDate>,
     accounts: Vec<&str>,
-) -> Result<OutputForTesting>
+) -> Result<Option<OutputForTesting>>
 where
     W: Write,
 {
@@ -39,15 +39,23 @@ where
             show_transaction_id,
         } => {
             let query_result = db.query_debits(filters)?;
+            if query_result.rows.len() == 0 {
+                return Ok(None);
+            }
             let mut to = table::TableOutput::new(writer, None);
             to.render_debits(&query_result.rows, *show_transaction_id)
+                .and_then(|o| Ok(Some(o)))
         }
         PreparedQuery::Credits {
             show_transaction_id,
         } => {
             let query_result = db.query_credits(filters)?;
+            if query_result.rows.len() == 0 {
+                return Ok(None);
+            }
             let mut to = table::TableOutput::new(writer, None);
             to.render_credits(&query_result.rows, *show_transaction_id)
+                .and_then(|o| Ok(Some(o)))
         }
         PreparedQuery::ByTime { aggregate, table } => {
             // Balance only really makes sense for some types of filter.
@@ -57,12 +65,17 @@ where
                 && amount_min.is_none()
                 && amount_max.is_none();
             let query_result = db.query_by_time(filters, &aggregate)?;
+            if query_result.rows.len() == 0 {
+                return Ok(None);
+            }
             if *table {
                 let mut to = table::TableOutput::new(writer, None);
                 to.render_by_time(&query_result.rows, show_balance, &aggregate)
+                    .and_then(|o| Ok(Some(o)))
             } else {
                 let mut co = chart::ChartOutput::new(writer, None);
                 co.render_by_time(&query_result.rows, show_balance, &aggregate)
+                    .and_then(|o| Ok(Some(o)))
             }
         }
         PreparedQuery::ByTag {
@@ -80,12 +93,17 @@ where
                 None => Vec::new(),
             };
             let query_result = db.query_by_tag(filters)?;
+            if query_result.rows.len() == 0 {
+                return Ok(None);
+            }
             if *table {
                 let mut to = table::TableOutput::new(writer, None);
                 to.render_by_tag(&query_result.rows)
+                    .and_then(|o| Ok(Some(o)))
             } else {
                 let mut co = chart::ChartOutput::new(writer, None);
                 co.render_by_tag(&query_result.rows)
+                    .and_then(|o| Ok(Some(o)))
             }
         }
     }
@@ -118,7 +136,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, _)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, _))) = output_for_testing {
             assert_eq!(
                 columns,
                 vec![
@@ -157,7 +175,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, rows))) = output_for_testing {
             assert_eq!(
                 columns,
                 vec![
@@ -219,7 +237,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 3);
             assert_eq!(rows[0][2], "16.00");
             assert_eq!(rows[1][2], "3.74");
@@ -273,7 +291,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 1);
             // Two rules add the same tag 'coffee', we want it returned only once.
             assert_eq!(rows[0][1], "coffee");
@@ -314,7 +332,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 2);
             assert_eq!(rows[0][2], "3.74");
             assert_eq!(rows[0][1], "daily/coffee"); // Tag column
@@ -346,7 +364,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 2);
             assert_eq!(rows[0][2], "3.74");
             assert_eq!(rows[1][2], "2.99");
@@ -376,7 +394,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 4);
             assert_eq!(rows[0][2], "35.98");
             assert_eq!(rows[1][2], "25.15");
@@ -408,7 +426,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 5);
             assert_eq!(rows[0][2], "15.99");
             assert_eq!(rows[1][2], "10.00");
@@ -441,7 +459,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 2);
             assert_eq!(rows[0][2], "25.15");
             assert_eq!(rows[1][2], "7.63");
@@ -471,7 +489,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 4);
             assert_eq!(rows[0][2], "35.98");
             assert_eq!(rows[1][2], "22.50");
@@ -503,7 +521,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 9);
             assert_eq!(rows[0][5], "35.98");
             assert_eq!(rows[1][5], "61.13");
@@ -540,7 +558,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 9);
             assert_eq!(rows[0][6], "25.70");
             assert_eq!(rows[1][6], "43.67");
@@ -577,7 +595,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows[0][4], "2021/02/26");
             // The first row is the one with the highest debit. The assertion
             // below is just for context, we're actually testing the date
@@ -609,7 +627,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows[0][0], "000000 - 00000000");
         } else {
             unimplemented!()
@@ -649,7 +667,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 7);
         } else {
             unimplemented!()
@@ -689,11 +707,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
-            assert_eq!(rows.len(), 0);
-        } else {
-            unimplemented!()
-        }
+        assert!(output_for_testing.is_none());
     }
 
     #[test]
@@ -742,7 +756,7 @@ mod debits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 1);
             let mut tags: Vec<&str> = rows[0][1].split("\n").collect();
             tags.sort();
@@ -780,7 +794,7 @@ mod credits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, _)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, _))) = output_for_testing {
             assert_eq!(
                 columns,
                 vec![
@@ -819,7 +833,7 @@ mod credits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, rows))) = output_for_testing {
             assert_eq!(
                 columns,
                 vec![
@@ -860,7 +874,7 @@ mod credits_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows[0][4], "2021/02/25");
         } else {
             unimplemented!()
@@ -900,7 +914,7 @@ mod credits_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             println!("{:#?}", rows);
             assert_eq!(rows.len(), 3);
         } else {
@@ -937,7 +951,7 @@ mod by_month_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, _)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, _))) = output_for_testing {
             assert_eq!(
                 columns,
                 vec![
@@ -960,6 +974,18 @@ mod by_month_tests {
     fn hide_balance_when_filtering_by_tag() {
         let db = open_stingy_testing_database();
         db.insert_test_data();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "coffee",
+            None,
+            Some("coffee"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
         let output_for_testing = command_query(
             &db,
@@ -978,7 +1004,7 @@ mod by_month_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, _)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, _))) = output_for_testing {
             assert_eq!(
                 columns,
                 vec![
@@ -1018,7 +1044,7 @@ mod by_month_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, _)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, _))) = output_for_testing {
             assert_eq!(
                 columns,
                 vec![
@@ -1059,7 +1085,7 @@ mod by_month_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, _)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, _))) = output_for_testing {
             assert_eq!(
                 columns,
                 vec![
@@ -1094,7 +1120,7 @@ mod by_month_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, _)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, _))) = output_for_testing {
             assert_eq!(
                 columns,
                 vec![
@@ -1134,7 +1160,7 @@ mod by_month_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 2);
             assert_eq!(
                 rows[0],
@@ -1189,7 +1215,7 @@ mod by_month_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 5);
             // First account, March 2021.
             assert_eq!(
@@ -1291,7 +1317,7 @@ mod by_month_tests {
             vec!["000000 - 00000000", "111111 - 11111111"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 3);
             // First account, March 2021.
             assert_eq!(
@@ -1366,7 +1392,7 @@ mod by_month_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows[0][0], "Alias");
         } else {
             unimplemented!()
@@ -1418,7 +1444,7 @@ mod by_month_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 2);
             assert_eq!(rows[1][1], "2021/02");
             /* The coffee transaction is tagged twice, but aggregated only once. */
@@ -1461,7 +1487,7 @@ mod by_month_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, rows))) = output_for_testing {
             assert_eq!(rows.len(), 2);
             assert_eq!(rows[1][1], "2021/02");
             /* The coffee transaction is omitted: 72.22 - 3.74 = 68.48. */
@@ -1508,7 +1534,7 @@ mod by_tag_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, _)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, _))) = output_for_testing {
             assert_eq!(
                 columns,
                 vec![
@@ -1569,7 +1595,7 @@ mod by_tag_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 3);
             assert_eq!(rows[0], vec!["", "117.25", "83.76", "1000.00", "100.00"]); // untagged
             assert_eq!(rows[1], vec!["pub", "16.00", "11.43", "0.00", "0.00"]);
@@ -1612,7 +1638,7 @@ mod by_tag_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 2);
             // Tags are aggregated across accounts.
             assert_eq!(rows[1][0], "credit");
@@ -1644,7 +1670,7 @@ mod by_tag_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows[0], ["", "139.98", "100.00", "0.00", "0.00"]);
             //                                                   ^^^^^^
             // We want to check that there's no division by zero in the
@@ -1699,7 +1725,7 @@ mod by_tag_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 2);
             assert_eq!(rows[1], vec!["pub", "16.00", "11.43", "0.00", "0.00"]);
         } else {
@@ -1752,7 +1778,7 @@ mod by_tag_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 2);
             assert_eq!(rows[0], vec!["", "117.25", "87.99", "1000.00", "100.00"]); // untagged
             assert_eq!(rows[1], vec!["pub", "16.00", "12.01", "0.00", "0.00"]);
@@ -1792,7 +1818,7 @@ mod chart_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Chart(chart_json) = output_for_testing {
+        if let Some(OutputForTesting::Chart(chart_json)) = output_for_testing {
             let chart = serde_json::from_str::<serde_json::Value>(&chart_json).unwrap();
             assert_eq!(chart.get("xAxis").unwrap().as_array().unwrap().len(), 2);
             assert_eq!(chart.get("yAxis").unwrap().as_array().unwrap().len(), 2);
@@ -1805,6 +1831,18 @@ mod chart_tests {
     fn by_month_hide_balance_when_filtering_by_tag() {
         let db = open_stingy_testing_database();
         db.insert_test_data();
+        crate::commands::tags::add_tag_rule(
+            &db,
+            "coffee",
+            None,
+            Some("coffee"),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
 
         let output_for_testing = command_query(
             &db,
@@ -1823,7 +1861,7 @@ mod chart_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Chart(chart_json) = output_for_testing {
+        if let Some(OutputForTesting::Chart(chart_json)) = output_for_testing {
             let chart = serde_json::from_str::<serde_json::Value>(&chart_json).unwrap();
             assert_eq!(chart.get("xAxis").unwrap().as_array().unwrap().len(), 1);
             assert_eq!(chart.get("yAxis").unwrap().as_array().unwrap().len(), 1);
@@ -1861,7 +1899,7 @@ mod by_week_tests {
             vec![],
         )
         .unwrap();
-        if let OutputForTesting::Table((columns, _)) = output_for_testing {
+        if let Some(OutputForTesting::Table((columns, _))) = output_for_testing {
             assert_eq!(
                 columns,
                 vec![
@@ -1902,7 +1940,7 @@ mod by_week_tests {
             vec!["000000 - 00000000"],
         )
         .unwrap();
-        if let OutputForTesting::Table((_, rows)) = output_for_testing {
+        if let Some(OutputForTesting::Table((_, rows))) = output_for_testing {
             assert_eq!(rows.len(), 2);
             assert_eq!(
                 rows[0],

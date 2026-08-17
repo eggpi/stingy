@@ -329,7 +329,7 @@ fn stingy_main() -> Result<()> {
                 .collect();
             let (january, today) =
                 parse_period(Some("jan-:")).map_err(|e| cmd.error(ErrorKind::InvalidValue, e))?;
-            commands::query::command_query(
+            if commands::query::command_query(
                 &db,
                 &mut io::stdout(),
                 &PreparedQuery::ByTime {
@@ -344,8 +344,12 @@ fn stingy_main() -> Result<()> {
                 january,     // from
                 today,       // to
                 accounts_names,
-            )
-            .map(|_| ())
+            )?
+            .is_none()
+            {
+                println!("There is no data for the current year.")?;
+            }
+            Ok(())
         }
         Some(Commands::Import { import }) => {
             let (format, paths) = match &import {
@@ -600,7 +604,7 @@ fn stingy_main() -> Result<()> {
                 .iter()
                 .map(|account| account.name.as_str())
                 .collect();
-            commands::query::command_query(
+            if commands::query::command_query(
                 &db,
                 &mut io::stdout(),
                 query,
@@ -612,7 +616,11 @@ fn stingy_main() -> Result<()> {
                 from,
                 to,
                 account_names,
-            )?;
+            )?
+            .is_none()
+            {
+                println!("The query returned no results.")?;
+            }
             match query {
                 PreparedQuery::ByTime { table: false, .. }
                 | PreparedQuery::ByTag { table: false, .. } => {
